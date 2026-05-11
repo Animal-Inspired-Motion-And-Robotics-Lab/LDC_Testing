@@ -30,8 +30,10 @@ void loop() {
   uint32_t now = millis();
   if (now - lastPrintMs >= 25) {
     lastPrintMs = now;
-    Serial.print(m.Rp_ohms, 3); Serial.print('\t'); 
-    Serial.println(m.L_uH, 6);
+    Serial.print(">Rp:"); Serial.print(m.Rp_ohms, 3); 
+    Serial.print(">L:"); Serial.print(m.L_uH, 6); 
+    Serial.print(">t:"); Serial.print(now);
+    Serial.println("|xy"); //Indicates x-y values for Teleplot
   }
 
   delay(50);
