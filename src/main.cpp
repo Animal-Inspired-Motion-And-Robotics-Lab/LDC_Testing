@@ -1,5 +1,10 @@
 #include <Arduino.h>
 #include "ldc1101.h"
+#include "measurement_arrays.h"
+
+const char* fw_version = "0.1.0";
+
+static constexpr int reading_delay_ms = 50;
 
 static constexpr float kSensorL_H = 11.8e-6f; //uH = 1e-6H
 static constexpr float kSensorC_F = 220e-12f; //pF = 1e-12F
@@ -9,8 +14,9 @@ static uint32_t lastPrintMs = 0;
 
 void setup() {
   Serial.begin(9600);
-  delay(200);
-
+  delay(1000);
+  Serial.print("LDC Testing, FW Version: ");Serial. println(fw_version);
+  
   ldc1101_init();
   ldc1101_configure(
       kSensorL_H,
@@ -26,15 +32,17 @@ void setup() {
 
 void loop() {
   ldc1101_measurement_t m = ldc1101_read(kSensorC_F);
+  appendMeasurement(m.Rp_ohms, m.L_uH); //Add the new measurements to their arrays
 
   uint32_t now = millis();
-  if (now - lastPrintMs >= 25) {
+  if (now - lastPrintMs >= reading_delay_ms) {
     lastPrintMs = now;
-    Serial.print(">Rp:"); Serial.print(m.Rp_ohms, 3); 
-    Serial.print(">L:"); Serial.print(m.L_uH, 6); 
+    Serial.print(">Rp:"); Serial.print(m.Rp_ohms, 3);
+    Serial.print(">L:"); Serial.print(m.L_uH, 6);
     Serial.print(">t:"); Serial.print(now);
     Serial.println("|xy"); //Indicates x-y values for Teleplot
+    //Serial.println(calculateDominantAngle()); //Print the dominant angle in radians
+    //printMeasurementArrays();
   }
 
-  delay(50);
 }
