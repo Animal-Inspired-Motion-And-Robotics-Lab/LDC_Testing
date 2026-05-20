@@ -94,25 +94,26 @@ typedef struct {
 static rp_config_t rp_cfg_global;
 static dig_conf_result_t dig_cfg_global;
 static ldc1101_mode_t current_mode;
-static uint16_t rcount = 0xFFFF;
+static uint16_t lhr_rcount = 0xFFFF;
 
 static void get_c1_settings(ldc_speed_mode_t mode, float* C1, uint8_t* C1_bits) {
+    // Per datasheet §8.6.3: TC1.C1 maps b00→0.75pF, b01→1.5pF, b10→3pF, b11→6pF.
     switch (mode) {
         case LDC_SPEED_ACCURACY_MAX:
-            *C1 = 24e-12f;
+            *C1 = 6e-12f;
             *C1_bits = 0b11;
             break;
         case LDC_SPEED_BALANCED_1:
-            *C1 = 12e-12f;
+            *C1 = 3e-12f;
             *C1_bits = 0b10;
             break;
         case LDC_SPEED_BALANCED_2:
-            *C1 = 6e-12f;
+            *C1 = 1.5e-12f;
             *C1_bits = 0b01;
             break;
         case LDC_SPEED_FAST:
         default:
-            *C1 = 3e-12f;
+            *C1 = 0.75e-12f;
             *C1_bits = 0b00;
             break;
     }
@@ -165,7 +166,10 @@ static rp_config_t ldc1101_make_rp_set(float L_h, float Q, float C_sensor) {
         }
     }
 
-    for (int i = 7; i >= 0; i--) {
+    // rp_table is sorted largest→smallest, so iterate i=0..7 to pick the
+    // largest bin ≤ lower (per datasheet §9.1.4 step 3). If nothing qualifies,
+    // rp_min_val stays at the initial 750 Ω (rp_table[7]).
+    for (int i = 0; i <= 7; i++) {
         if (rp_table[i].resistance <= lower) {
             rp_min_bits = rp_table[i].bits;
             rp_min_val = rp_table[i].resistance;
@@ -176,11 +180,6 @@ static rp_config_t ldc1101_make_rp_set(float L_h, float Q, float C_sensor) {
     if (rp_min_val > rp_max_val) {
         rp_min_bits = rp_max_bits;
         rp_min_val = rp_max_val;
-    }
-
-    if (lower < rp_table[7].resistance) {
-        rp_min_bits = rp_table[7].bits;
-        rp_min_val = rp_table[7].resistance;
     }
 
     result.reg = (high_q_bit << 7) | (rp_max_bits << 4) | (rp_min_bits);
@@ -352,12 +351,16 @@ void ldc1101_configure(float L_h, float C_sensor, float Q, ldc1101_mode_t mode,
 
         ldc_write(REG_ALT_CONFIG, 0x01);
         ldc_write(REG_D_CONFIG, 0x01);
-        ldc_write(REG_LHR_RCOUNT_LSB, 0xFF);
-        ldc_write(REG_LHR_RCOUNT_MSB, 0xFF);
+        lhr_rcount = 0xFFFF;
+        ldc_write(REG_LHR_RCOUNT_LSB, (uint8_t)(lhr_rcount & 0xFF));
+        ldc_write(REG_LHR_RCOUNT_MSB, (uint8_t)((lhr_rcount >> 8) & 0xFF));
         ldc_write(REG_LHR_OFFSET_MSB, 0x00);
         ldc_write(REG_LHR_OFFSET_LSB, 0x00);
     } else {
         ldc_write(REG_ALT_CONFIG, 0x00);
+        // §9.1.4 requires DOK_REPORT=0 for RP measurements; force in case a
+        // previous LHR configuration left it set.
+        ldc_write(REG_D_CONFIG, 0x00);
     }
 
     ldc_write(REG_INTB_MODE, 0x00);
@@ -368,13 +371,36 @@ ldc1101_measurement_t ldc1101_read(float C_sensor) {
     ldc1101_measurement_t result;
 
     if (current_mode == LDC1101_MODE_LHR) {
-        float lhr_time_sec = (float)rcount / F_CLKIN;
+        // §9.1.10 Eq 14: t_CONV = (55 + RCOUNT × 16) / f_CLKIN
+        float lhr_time_sec = (55.0f + (float)lhr_rcount * 16.0f) / F_CLKIN;
         uint32_t delay_ms = (uint32_t)(lhr_time_sec * 1000.0f) + 1;
         vTaskDelay(pdMS_TO_TICKS(delay_ms));
         result.Rp_ohms = NAN;
     } else {
-        while (ldc_read(REG_STATUS) & (1 << 6)) {
+        // Poll DRDYB; bail out on NO_SENSOR_OSC or timeout so a misconfigured
+        // chip can't deadlock the caller.
+        const uint32_t timeout_ms = 100;
+        uint32_t waited_ms = 0;
+        uint8_t status;
+        while (1) {
+            status = ldc_read(REG_STATUS);
+            if (!(status & (1 << 6))) break;            // DRDYB cleared
+            if (status & (1 << 7)) {                    // NO_SENSOR_OSC
+                printf("LDC1101: NO_SENSOR_OSC (status=0x%02X) — RPMIN likely too high for sensor\n", status);
+                result.Rp_ohms = NAN;
+                result.L_uH = NAN;
+                result.timestamp_ms = esp_log_timestamp();
+                return result;
+            }
+            if (waited_ms >= timeout_ms) {
+                printf("LDC1101: DRDYB timeout (status=0x%02X)\n", status);
+                result.Rp_ohms = NAN;
+                result.L_uH = NAN;
+                result.timestamp_ms = esp_log_timestamp();
+                return result;
+            }
             vTaskDelay(pdMS_TO_TICKS(1));
+            waited_ms++;
         }
 
         uint8_t rp_lsb = ldc_read(REG_RP_DATA_LSB);

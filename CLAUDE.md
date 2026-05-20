@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PlatformIO firmware targeting the **Seeed XIAO ESP32-S3** (Arduino framework) that drives a **TI LDC1101** inductance-to-digital converter over SPI. The application reads `Rp` (parallel resistance) and `L` (inductance) and streams them over USB serial in Teleplot format.
 
-The LDC1101 datasheet (`lib/LDC1101/ldc1101.pdf`) is the reference for register layout, RP-table values, and the formulas the driver uses to derive `RP_SET`, `TC1`, `TC2`, and `DIG_CONF` from sensor `L`, `C`, `Q`.
+The LDC1101 datasheet (`lib/LDC1101/ldc1101.pdf`, grep-friendly text extraction at `lib/LDC1101/ldc1101.txt`) is the reference for register layout, RP-table values, and the formulas the driver uses to derive `RP_SET`, `TC1`, `TC2`, and `DIG_CONF` from sensor `L`, `C`, `Q`.
 
 ## Common commands
 

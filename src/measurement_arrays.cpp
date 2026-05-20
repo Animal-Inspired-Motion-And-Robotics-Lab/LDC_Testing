@@ -8,10 +8,51 @@ static float Rp_array[array_length] = {0.0f};
 static float L_array[array_length] = {0.0f};
 static size_t measurementCount = 0;
 
+static constexpr size_t kMaxFilterWindow = 64;
+static float rpRing[kMaxFilterWindow] = {0.0f};
+static float lRing[kMaxFilterWindow] = {0.0f};
+static size_t ringHead = 0;     // next write index
+static size_t ringFilled = 0;   // valid entries, capped at kMaxFilterWindow
+static size_t filterWindow = 1; // 1 = pass-through
+static float latestFilteredRp = 0.0f;
+static float latestFilteredL = 0.0f;
+
+void setFilterWindow(size_t window) {
+  if (window < 1) window = 1;
+  if (window > kMaxFilterWindow) window = kMaxFilterWindow;
+  filterWindow = window;
+}
+
+static void filterSample(float rp_in, float l_in, float& rp_out, float& l_out) {
+  rpRing[ringHead] = rp_in;
+  lRing[ringHead] = l_in;
+  ringHead = (ringHead + 1) % kMaxFilterWindow;
+  if (ringFilled < kMaxFilterWindow) ringFilled++;
+
+  size_t n = filterWindow < ringFilled ? filterWindow : ringFilled;
+  float sumRp = 0.0f;
+  float sumL = 0.0f;
+  for (size_t k = 0; k < n; ++k) {
+    size_t idx = (ringHead + kMaxFilterWindow - 1 - k) % kMaxFilterWindow;
+    sumRp += rpRing[idx];
+    sumL += lRing[idx];
+  }
+  rp_out = sumRp / (float)n;
+  l_out = sumL / (float)n;
+  latestFilteredRp = rp_out;
+  latestFilteredL = l_out;
+}
+
+float getLatestFilteredRp(void) { return latestFilteredRp; }
+float getLatestFilteredL(void) { return latestFilteredL; }
+
 void appendMeasurement(float rp_ohms, float l_uH) {
+  float rp_f, l_f;
+  filterSample(rp_ohms, l_uH, rp_f, l_f);
+
   if (measurementCount < array_length) {
-    Rp_array[measurementCount] = rp_ohms;
-    L_array[measurementCount] = l_uH;
+    Rp_array[measurementCount] = rp_f;
+    L_array[measurementCount] = l_f;
     measurementCount++;
     return;
   }
@@ -22,8 +63,8 @@ void appendMeasurement(float rp_ohms, float l_uH) {
     L_array[i - 1] = L_array[i];
   }
 
-  Rp_array[array_length - 1] = rp_ohms;
-  L_array[array_length - 1] = l_uH;
+  Rp_array[array_length - 1] = rp_f;
+  L_array[array_length - 1] = l_f;
 }
 
 void printMeasurementArrays(void) {
