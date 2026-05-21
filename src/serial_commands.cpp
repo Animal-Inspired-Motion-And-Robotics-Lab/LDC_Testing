@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "LED.h"
 #include "calibration.h"
 #include "measurement_arrays.h"
 
@@ -44,29 +45,32 @@ void printHelp() {
   Serial.println("commands:");
   Serial.println("  help");
   Serial.println("  status");
-  Serial.println("  angle");
+  Serial.println("  angle [radians]");
   Serial.println("  mode rp_l|lhr");
   Serial.println("  speed accuracy|balanced1|balanced2|fast");
   Serial.println("  stream on|off");
   Serial.println("  delay <ms>");
-  Serial.println("  window <n>");
-  Serial.println("  rotated");
-  Serial.println("  unrotated");
+  Serial.println("  smoothing <n>");
+  Serial.println("  rotated on|off");
   Serial.println("  calibrate [samples]");
 }
 
 void printStatus() {
+  const float angleRad = getRotationAngle();
+
   Serial.print("status mode=");
   Serial.print(modeToString(gState.mode));
   Serial.print(" speed=");
   Serial.print(speedToString(gState.speed_mode));
   Serial.print(" stream=");
   Serial.print(gState.streaming_enabled ? "on" : "off");
-  Serial.print(" output=");
-  Serial.print(gState.output_rotated ? "rotated" : "unrotated");
+  Serial.print(" rotated=");
+  Serial.print(gState.rotated ? "on" : "off");
+  Serial.print(" angle_rad=");
+  Serial.print(angleRad, 6);
   Serial.print(" delay_ms=");
   Serial.print((unsigned long)gState.reading_delay_ms);
-  Serial.print(" window=");
+  Serial.print(" smoothing=");
   Serial.println((unsigned int)getFilterWindow());
 }
 
@@ -94,15 +98,27 @@ void processCommand(char* line) {
   }
 
   if (strcmp(token, "angle") == 0) {
-    const float angleRad = getRotationAngle();
-    const float angleDeg = angleRad * 57.2957795f;
+    char* value = strtok(nullptr, " \t");
+    if (value != nullptr) {
+      char* end = nullptr;
+      float parsed = strtof(value, &end);
+      if (end == value || *end != '\0') {
+        Serial.println("ERR usage: angle [radians]");
+        return;
+      }
+      char* extra = strtok(nullptr, " \t");
+      if (extra != nullptr) {
+        Serial.println("ERR usage: angle [radians]");
+        return;
+      }
+      setRotationAngle(parsed);
+    }
 
+    const float angleRad = getRotationAngle();
     Serial.print("rotation_angle_rad=");
     Serial.println(angleRad, 6);
-    Serial.print("rotation_angle_deg=");
-    Serial.println(angleDeg, 3);
     Serial.print("rotation_enabled=");
-    Serial.println(getRotationEnabled() ? "on" : "off");
+    Serial.println(gState.rotated ? "on" : "off");
     return;
   }
 
@@ -146,21 +162,21 @@ void processCommand(char* line) {
     return;
   }
 
-  if (strcmp(token, "window") == 0) {
+  if (strcmp(token, "smoothing") == 0) {
     char* value = strtok(nullptr, " \t");
     if (value == nullptr) {
-      Serial.println("ERR usage: window <n>");
+      Serial.println("ERR usage: smoothing <n>");
       return;
     }
 
     long parsed = strtol(value, nullptr, 10);
     if (parsed <= 0) {
-      Serial.println("ERR window must be >= 1");
+      Serial.println("ERR smoothing must be >= 1");
       return;
     }
 
     setFilterWindow((size_t)parsed);
-    Serial.print("OK window ");
+    Serial.print("OK smoothing ");
     Serial.println((unsigned int)getFilterWindow());
     return;
   }
@@ -229,6 +245,7 @@ void processCommand(char* line) {
       }
       sampleCount = (size_t)parsed;
     }
+    ledFlash(10, 30);
     Serial.print("calibrate start samples=");
     Serial.println((unsigned int)sampleCount);
     calibration_result_t result = calibrationRun(gConfig.sensor_c_f, sampleCount);
@@ -237,14 +254,24 @@ void processCommand(char* line) {
   }
 
   if (strcmp(token, "rotated") == 0) {
-    gState.output_rotated = true;
-    Serial.println("OK output rotated");
-    return;
-  }
-
-  if (strcmp(token, "unrotated") == 0) {
-    gState.output_rotated = false;
-    Serial.println("OK output unrotated");
+    char* value = strtok(nullptr, " \t");
+    if (value == nullptr) {
+      Serial.println("ERR usage: rotated on|off");
+      return;
+    }
+    if (strcmp(value, "on") == 0) {
+      gState.rotated = true;
+      setRotationEnabled(true);
+      Serial.println("OK rotated on");
+      return;
+    }
+    if (strcmp(value, "off") == 0) {
+      gState.rotated = false;
+      setRotationEnabled(false);
+      Serial.println("OK rotated off");
+      return;
+    }
+    Serial.println("ERR usage: rotated on|off");
     return;
   }
 
@@ -262,6 +289,7 @@ void serialCommandsInit(const serial_command_config_t* config,
 
   gConfig = *config;
   gState = *initial_state;
+  setRotationEnabled(gState.rotated);
   gCommandLength = 0;
   gInitialized = true;
 
