@@ -65,6 +65,7 @@ void loop() {
     //Print out either rotated or unrotated values
     float rpToPrint = state.rotated ? getLatestRotatedRp() : getLatestFilteredRp();
     float lToPrint = state.rotated ? getLatestRotatedL() : getLatestFilteredL();
+    if (state.mode == LDC1101_MODE_LHR) { rpToPrint = 0.0f; }
     Serial.print(">Rp:"); Serial.print(rpToPrint, 3);
     Serial.print(">L:"); Serial.print(lToPrint, 6);
     Serial.print(">t:"); Serial.print(now);

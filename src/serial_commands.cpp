@@ -21,7 +21,7 @@ static char gCommandBuffer[kCommandBufferLen];
 static size_t gCommandLength = 0;
 
 const char* modeToString(ldc1101_mode_t mode) {
-  return mode == LDC1101_MODE_LHR ? "lhr" : "rp_l";
+  return mode == LDC1101_MODE_LHR ? "lhr" : "lrp";
 }
 
 const char* speedToString(ldc_speed_mode_t speed) {
@@ -46,7 +46,7 @@ void printHelp() {
   Serial.println("  help");
   Serial.println("  status");
   Serial.println("  angle [radians]");
-  Serial.println("  mode rp_l|lhr");
+  Serial.println("  mode lpr|lhr");
   Serial.println("  speed accuracy|balanced1|balanced2|fast");
   Serial.println("  stream on|off");
   Serial.println("  delay <ms>");
@@ -184,17 +184,17 @@ void processCommand(char* line) {
   if (strcmp(token, "mode") == 0) {
     char* value = strtok(nullptr, " \t");
     if (value == nullptr) {
-      Serial.println("ERR usage: mode rp_l|lhr");
+      Serial.println("ERR usage: mode lpr|lhr");
       return;
     }
 
     ldc1101_mode_t newMode;
-    if (strcmp(value, "rp_l") == 0 || strcmp(value, "rpl") == 0) {
+    if (strcmp(value, "lrp") == 0) {
       newMode = LDC1101_MODE_RP_L;
     } else if (strcmp(value, "lhr") == 0) {
       newMode = LDC1101_MODE_LHR;
     } else {
-      Serial.println("ERR usage: mode rp_l|lhr");
+      Serial.println("ERR usage: mode lpr|lhr");
       return;
     }
 
