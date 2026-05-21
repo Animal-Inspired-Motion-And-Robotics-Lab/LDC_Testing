@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "LED.h"
+#include "crack_detection.h"
 #include "ldc1101.h"
 #include "measurement_arrays.h"
 #include "serial_commands.h"
@@ -45,6 +46,14 @@ void setup() {
   //Add smoothing for incoming data
   setFilterWindow(10); //Set to 1 for raw data pass-through
 
+  crack_detection_config_t crackConfig = {
+      5,      // lookback_samples
+      3.0f,   // min_left_rp_ohms
+      0.010f, // min_up_l_uH
+      1000    // cooldown_ms
+  };
+  crackDetectionInit(&crackConfig);
+
   Serial.println("LDC1101 initialized");
 }
 
@@ -61,6 +70,12 @@ void loop() {
     lastPrintMs = now;
       ldc1101_measurement_t m = ldc1101_read(kSensorC_F);
       appendMeasurement(m.Rp_ohms, m.L_uH); //Add the new measurements to their arrays
+
+    if (state.rotated) {
+      if (crackDetectionCheck(now, nullptr)) {
+        ledFlash(3, 20);
+      }
+    }
 
     //Print out either rotated or unrotated values
     float rpToPrint = state.rotated ? getLatestRotatedRp() : getLatestFilteredRp();

@@ -37,4 +37,9 @@ bool getRotationEnabled(void);
 float getLatestRotatedRp(void);
 float getLatestRotatedL(void);
 
+// Compute latest minus lookback rotated delta.
+// Returns false when there are not enough samples.
+bool getRecentRotatedDelta(size_t lookback_samples, float* delta_rp,
+						   float* delta_l);
+
 #endif

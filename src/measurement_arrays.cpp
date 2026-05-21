@@ -7,6 +7,8 @@ static constexpr size_t array_length = 1000;
 
 static float Rp_array[array_length] = {0.0f};
 static float L_array[array_length] = {0.0f};
+static float rotatedRpArray[array_length] = {0.0f};
+static float rotatedLArray[array_length] = {0.0f};
 static size_t measurementCount = 0;
 
 static constexpr size_t kMaxFilterWindow = 512;
@@ -92,6 +94,8 @@ void appendMeasurement(float rp_ohms, float l_uH) {
   if (measurementCount < array_length) {
     Rp_array[measurementCount] = rp_f;
     L_array[measurementCount] = l_f;
+    rotatedRpArray[measurementCount] = latestRotatedRp;
+    rotatedLArray[measurementCount] = latestRotatedL;
     measurementCount++;
     return;
   }
@@ -100,10 +104,14 @@ void appendMeasurement(float rp_ohms, float l_uH) {
   for (size_t i = 1; i < array_length; ++i) {
     Rp_array[i - 1] = Rp_array[i];
     L_array[i - 1] = L_array[i];
+    rotatedRpArray[i - 1] = rotatedRpArray[i];
+    rotatedLArray[i - 1] = rotatedLArray[i];
   }
 
   Rp_array[array_length - 1] = rp_f;
   L_array[array_length - 1] = l_f;
+  rotatedRpArray[array_length - 1] = latestRotatedRp;
+  rotatedLArray[array_length - 1] = latestRotatedL;
 }
 
 void printMeasurementArrays(void) {
@@ -157,6 +165,25 @@ bool getRecentMeasurementMean(size_t requested_samples, float* mean_rp,
   if (used_samples != nullptr) {
     *used_samples = sampleCount;
   }
+  return true;
+}
+
+bool getRecentRotatedDelta(size_t lookback_samples, float* delta_rp,
+                           float* delta_l) {
+  if (delta_rp == nullptr || delta_l == nullptr) {
+    return false;
+  }
+  if (lookback_samples == 0) {
+    return false;
+  }
+  if (measurementCount <= lookback_samples) {
+    return false;
+  }
+
+  const size_t latestIdx = measurementCount - 1;
+  const size_t olderIdx = latestIdx - lookback_samples;
+  *delta_rp = rotatedRpArray[latestIdx] - rotatedRpArray[olderIdx];
+  *delta_l = rotatedLArray[latestIdx] - rotatedLArray[olderIdx];
   return true;
 }
 
