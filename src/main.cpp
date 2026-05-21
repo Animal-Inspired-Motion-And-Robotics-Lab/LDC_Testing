@@ -20,7 +20,6 @@ static constexpr int kSwitchEnable = 0;
 static constexpr int kSwitchGpio = -1;
 static constexpr int kLedPin = LED_BUILTIN;
 static constexpr bool kLedActiveHigh = false;
-static constexpr size_t kCrackDetectionWindowSamples = 50;
 
 static uint32_t lastPrintMs = 0;
 
@@ -48,11 +47,11 @@ void setup() {
   setFilterWindow(10); //Set to 1 for raw data pass-through
 
   crack_detection_config_t crackConfig = {
-      0.5f,  // min_vector_magnitude
+      5.0f,  // min_vector_magnitude
       1.57f, // min_phase_angle_rad (pi/2)
       3.14f, // max_phase_angle_rad (pi)
       1000,  // cooldown_ms
-      kCrackDetectionWindowSamples
+      100     // window_samples
   };
   crackDetectionInit(&crackConfig);
 
