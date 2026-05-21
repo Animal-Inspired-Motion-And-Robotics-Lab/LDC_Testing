@@ -1,10 +1,13 @@
 #include "crack_detection.h"
 
+#include <math.h>
+
 #include "measurement_arrays.h"
 
 namespace {
 
-static crack_detection_config_t gConfig = {5, 3.0f, 0.010f, 1000};
+static constexpr float kPi = 3.14159265358979323846f;
+static crack_detection_config_t gConfig = {3.0f, (kPi * 0.5f), kPi, 1000, 50};
 static bool gInitialized = false;
 static uint32_t gLastDetectionMs = 0;
 
@@ -15,16 +18,18 @@ void crackDetectionInit(const crack_detection_config_t* config) {
     gConfig = *config;
   }
 
-  if (gConfig.lookback_samples < 1) {
-    gConfig.lookback_samples = 1;
+  if (gConfig.min_vector_magnitude < 0.0f) {
+    gConfig.min_vector_magnitude = 0.0f;
   }
 
-  if (gConfig.min_left_rp_ohms < 0.0f) {
-    gConfig.min_left_rp_ohms = 0.0f;
+  if (gConfig.min_phase_angle_rad > gConfig.max_phase_angle_rad) {
+    float tmp = gConfig.min_phase_angle_rad;
+    gConfig.min_phase_angle_rad = gConfig.max_phase_angle_rad;
+    gConfig.max_phase_angle_rad = tmp;
   }
 
-  if (gConfig.min_up_l_uH < 0.0f) {
-    gConfig.min_up_l_uH = 0.0f;
+  if (gConfig.window_samples < 1) {
+    gConfig.window_samples = 1;
   }
 
   gLastDetectionMs = 0;
@@ -36,16 +41,41 @@ bool crackDetectionCheck(uint32_t timestamp_ms, crack_detection_result_t* result
     crackDetectionInit(nullptr);
   }
 
-  float deltaRp = 0.0f;
-  float deltaL = 0.0f;
-  if (!getRecentRotatedDelta(gConfig.lookback_samples, &deltaRp, &deltaL)) {
+  if (result != nullptr) {
+    result->detected = false;
+    result->vector_rp_ohms = 0.0f;
+    result->vector_l_uH = 0.0f;
+    result->vector_magnitude = 0.0f;
+    result->phase_angle_rad = NAN;
+    result->timestamp_ms = timestamp_ms;
+  }
+
+  float vectorRp = 0.0f;
+  float vectorL = 0.0f;
+  if (!getRecentRotatedDelta(gConfig.window_samples, &vectorRp, &vectorL)) {
     return false;
   }
 
-  // Up-left means L rises while Rp falls over the lookback horizon.
-  const bool isUpLeft = (deltaL >= gConfig.min_up_l_uH) &&
-                        (deltaRp <= -gConfig.min_left_rp_ohms);
-  if (!isUpLeft) {
+  // Evaluate event direction from motion in rotated phase space.
+  float magnitude = sqrtf(vectorRp * vectorRp + vectorL * vectorL);
+  float phaseAngle = atan2f(vectorL, vectorRp);
+
+  if (result != nullptr) {
+    result->vector_rp_ohms = vectorRp;
+    result->vector_l_uH = vectorL;
+    result->vector_magnitude = magnitude;
+    result->phase_angle_rad = phaseAngle;
+  }
+
+  if (isnan(magnitude) || isnan(phaseAngle)) {
+    return false;
+  }
+
+  const bool aboveMagnitudeThreshold = (magnitude >= gConfig.min_vector_magnitude);
+  const bool inPhaseWindow = (phaseAngle >= gConfig.min_phase_angle_rad) &&
+                             (phaseAngle <= gConfig.max_phase_angle_rad);
+
+  if (!aboveMagnitudeThreshold || !inPhaseWindow) {
     return false;
   }
 
@@ -57,10 +87,44 @@ bool crackDetectionCheck(uint32_t timestamp_ms, crack_detection_result_t* result
   gLastDetectionMs = timestamp_ms;
   if (result != nullptr) {
     result->detected = true;
-    result->delta_rp_ohms = deltaRp;
-    result->delta_l_uH = deltaL;
     result->timestamp_ms = timestamp_ms;
   }
 
   return true;
+}
+
+void crackDetectionSetWindowSamples(size_t window_samples) {
+  if (!gInitialized) {
+    crackDetectionInit(nullptr);
+  }
+
+  if (window_samples < 1) {
+    window_samples = 1;
+  }
+  gConfig.window_samples = window_samples;
+}
+
+size_t crackDetectionGetWindowSamples(void) {
+  if (!gInitialized) {
+    crackDetectionInit(nullptr);
+  }
+  return gConfig.window_samples;
+}
+
+void crackDetectionSetMinVectorMagnitude(float min_vector_magnitude) {
+  if (!gInitialized) {
+    crackDetectionInit(nullptr);
+  }
+
+  if (min_vector_magnitude < 0.0f) {
+    min_vector_magnitude = 0.0f;
+  }
+  gConfig.min_vector_magnitude = min_vector_magnitude;
+}
+
+float crackDetectionGetMinVectorMagnitude(void) {
+  if (!gInitialized) {
+    crackDetectionInit(nullptr);
+  }
+  return gConfig.min_vector_magnitude;
 }

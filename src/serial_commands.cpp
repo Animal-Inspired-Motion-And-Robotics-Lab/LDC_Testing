@@ -6,6 +6,7 @@
 
 #include "LED.h"
 #include "calibration.h"
+#include "crack_detection.h"
 #include "measurement_arrays.h"
 
 namespace {
@@ -51,6 +52,9 @@ void printHelp() {
   Serial.println("  stream on|off");
   Serial.println("  delay <ms>");
   Serial.println("  smoothing <n>");
+  Serial.println("  window [n]");
+  Serial.println("  crack [min_magnitude]");
+  Serial.println("  crackdebug on|off");
   Serial.println("  rotated on|off");
   Serial.println("  calibrate [samples]");
 }
@@ -66,12 +70,18 @@ void printStatus() {
   Serial.print(gState.streaming_enabled ? "on" : "off");
   Serial.print(" rotated=");
   Serial.print(gState.rotated ? "on" : "off");
+  Serial.print(" crackdebug=");
+  Serial.print(gState.crack_debug_output ? "on" : "off");
   Serial.print(" angle_rad=");
   Serial.print(angleRad, 6);
   Serial.print(" delay_ms=");
   Serial.print((unsigned long)gState.reading_delay_ms);
   Serial.print(" smoothing=");
-  Serial.println((unsigned int)getFilterWindow());
+  Serial.print((unsigned int)getFilterWindow());
+  Serial.print(" window=");
+  Serial.print((unsigned int)crackDetectionGetWindowSamples());
+  Serial.print(" crack=");
+  Serial.println(crackDetectionGetMinVectorMagnitude(), 6);
 }
 
 void processCommand(char* line) {
@@ -178,6 +188,59 @@ void processCommand(char* line) {
     setFilterWindow((size_t)parsed);
     Serial.print("OK smoothing ");
     Serial.println((unsigned int)getFilterWindow());
+    return;
+  }
+
+  if (strcmp(token, "window") == 0) {
+    char* value = strtok(nullptr, " \t");
+    if (value != nullptr) {
+      long parsed = strtol(value, nullptr, 10);
+      if (parsed <= 0) {
+        Serial.println("ERR window must be >= 1");
+        return;
+      }
+      crackDetectionSetWindowSamples((size_t)parsed);
+    }
+
+    Serial.print("window=");
+    Serial.println((unsigned int)crackDetectionGetWindowSamples());
+    return;
+  }
+
+  if (strcmp(token, "crack") == 0) {
+    char* value = strtok(nullptr, " \t");
+    if (value != nullptr) {
+      char* end = nullptr;
+      float parsed = strtof(value, &end);
+      if (end == value || *end != '\0' || parsed < 0.0f) {
+        Serial.println("ERR crack must be >= 0");
+        return;
+      }
+      crackDetectionSetMinVectorMagnitude(parsed);
+    }
+
+    Serial.print("crack=");
+    Serial.println(crackDetectionGetMinVectorMagnitude(), 6);
+    return;
+  }
+
+  if (strcmp(token, "crackdebug") == 0) {
+    char* value = strtok(nullptr, " \t");
+    if (value == nullptr) {
+      Serial.println("ERR usage: crackdebug on|off");
+      return;
+    }
+    if (strcmp(value, "on") == 0) {
+      gState.crack_debug_output = true;
+      Serial.println("OK crackdebug on");
+      return;
+    }
+    if (strcmp(value, "off") == 0) {
+      gState.crack_debug_output = false;
+      Serial.println("OK crackdebug off");
+      return;
+    }
+    Serial.println("ERR usage: crackdebug on|off");
     return;
   }
 

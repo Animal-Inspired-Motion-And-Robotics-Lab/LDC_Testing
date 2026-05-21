@@ -73,6 +73,14 @@ void setRotationCenter(float rp_center, float l_center) {
   rotationCenterRp = rp_center;
   rotationCenterL = l_center;
 }
+void getRotationCenter(float* rp_center, float* l_center) {
+  if (rp_center != nullptr) {
+    *rp_center = rotationCenterRp;
+  }
+  if (l_center != nullptr) {
+    *l_center = rotationCenterL;
+  }
+}
 void setRotationEnabled(bool enabled) { rotationEnabled = enabled; }
 bool getRotationEnabled(void) { return rotationEnabled; }
 

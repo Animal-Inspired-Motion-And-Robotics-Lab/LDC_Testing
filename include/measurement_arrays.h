@@ -30,6 +30,7 @@ void rotateSample(float rp_in, float l_in, float angle_rad,
 void setRotationAngle(float angle_rad);
 float getRotationAngle(void);
 void setRotationCenter(float rp_center, float l_center);
+void getRotationCenter(float* rp_center, float* l_center);
 void setRotationEnabled(bool enabled);
 bool getRotationEnabled(void);
 

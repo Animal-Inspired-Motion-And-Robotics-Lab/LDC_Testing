@@ -7,7 +7,7 @@
 
 const char* fw_version = "0.2.1";
 
-static constexpr uint32_t kDefaultReadingDelayMs = 250;
+static constexpr uint32_t kDefaultReadingDelayMs = 25;
 
 //For the stacked inductors, L = 11.8, 42.6, 90.0 uH
 static constexpr float kSensorL_H = 42.6e-6f; //uH = 1e-6H
@@ -20,6 +20,7 @@ static constexpr int kSwitchEnable = 0;
 static constexpr int kSwitchGpio = -1;
 static constexpr int kLedPin = LED_BUILTIN;
 static constexpr bool kLedActiveHigh = false;
+static constexpr size_t kCrackDetectionWindowSamples = 50;
 
 static uint32_t lastPrintMs = 0;
 
@@ -34,7 +35,7 @@ void setup() {
   serial_command_config_t commandConfig = {kSensorL_H, kSensorC_F, kSensorQ,
       kSwitchEnable, kSwitchGpio};
   serial_command_state_t initialState = {LDC1101_MODE_RP_L, LDC_SPEED_BALANCED_1,
-      true, false, kDefaultReadingDelayMs};
+      true, false, false, kDefaultReadingDelayMs};
   
   //Initialize the LDC1101
   ldc1101_init();
@@ -47,10 +48,11 @@ void setup() {
   setFilterWindow(10); //Set to 1 for raw data pass-through
 
   crack_detection_config_t crackConfig = {
-      5,      // lookback_samples
-      3.0f,   // min_left_rp_ohms
-      0.010f, // min_up_l_uH
-      1000    // cooldown_ms
+      0.5f,  // min_vector_magnitude
+      1.57f, // min_phase_angle_rad (pi/2)
+      3.14f, // max_phase_angle_rad (pi)
+      1000,  // cooldown_ms
+      kCrackDetectionWindowSamples
   };
   crackDetectionInit(&crackConfig);
 
@@ -71,8 +73,11 @@ void loop() {
       ldc1101_measurement_t m = ldc1101_read(kSensorC_F);
       appendMeasurement(m.Rp_ohms, m.L_uH); //Add the new measurements to their arrays
 
+    crack_detection_result_t crackResult = {};
+    bool crackDetected = crackDetectionCheck(now, &crackResult);
+
     if (state.rotated) {
-      if (crackDetectionCheck(now, nullptr)) {
+      if (crackDetected) {
         ledFlash(3, 20);
       }
     }
@@ -85,6 +90,17 @@ void loop() {
     Serial.print(">L:"); Serial.print(lToPrint, 6);
     Serial.print(">t:"); Serial.print(now);
     Serial.println("|xy"); //Indicates x-y values for Teleplot
+
+    if (state.crack_debug_output) {
+      Serial.print("crack det="); Serial.print(crackResult.detected ? 1 : 0);
+      Serial.print(" mag="); Serial.print(crackResult.vector_magnitude, 6);
+      Serial.print(" phase="); Serial.print(crackResult.phase_angle_rad, 6);
+      Serial.print(" vrp="); Serial.print(crackResult.vector_rp_ohms, 3);
+      Serial.print(" vl="); Serial.print(crackResult.vector_l_uH, 6);
+      Serial.print(" threshold="); Serial.print(crackDetectionGetMinVectorMagnitude(), 6);
+      Serial.print(" window="); Serial.print((unsigned int)crackDetectionGetWindowSamples());
+      Serial.print(" rotated="); Serial.println(state.rotated ? "on" : "off");
+    }
   }
 
 }
