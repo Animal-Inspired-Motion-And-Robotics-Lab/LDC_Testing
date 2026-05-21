@@ -1,18 +1,21 @@
 #include <Arduino.h>
 #include "ldc1101.h"
 #include "measurement_arrays.h"
+#include "serial_commands.h"
 
-const char* fw_version = "0.1.0";
+const char* fw_version = "0.2.0";
 
-static constexpr int reading_delay_ms = 25;
+static constexpr uint32_t kDefaultReadingDelayMs = 1000;
 
 //For the stacked inductors, L = 11.8, 42.6, 90.0 uH
 static constexpr float kSensorL_H = 42.6e-6f; //uH = 1e-6H
-static constexpr float kSensorC_F = 660e-12f; //pF = 1e-12F
+static constexpr float kSensorC_F = 100e-12f; //pF = 1e-12F
 
 //For the stacked inductors, modeled Q values are 23.6, 24.6, 25.6
 //with a 220pF capacitor
-static constexpr float kSensorQ = 15.0f; // Quality factor
+static constexpr float kSensorQ = 30.0f; // Quality factor
+static constexpr int kSwitchEnable = 0;
+static constexpr int kSwitchGpio = -1;
 
 static uint32_t lastPrintMs = 0;
 
@@ -20,17 +23,27 @@ void setup() {
   Serial.begin(9600); //Serial connection
   delay(5000); //Startup delay
   Serial.print("LDC Testing, FW Version: ");Serial. println(fw_version);
-  
-  //Initialize the LDC1101
-  ldc1101_init();
-  ldc1101_configure(
+
+  //Set up the serial command interface
+  serial_command_config_t commandConfig = {
       kSensorL_H,
       kSensorC_F,
       kSensorQ,
+      kSwitchEnable,
+      kSwitchGpio};
+  serial_command_state_t initialState = {
       LDC1101_MODE_RP_L,
       LDC_SPEED_BALANCED_1,
-      0,
-      -1);
+      true,
+      false,
+      kDefaultReadingDelayMs};
+  
+  //Initialize the LDC1101
+  ldc1101_init();
+  ldc1101_configure(kSensorL_H, kSensorC_F, kSensorQ,
+      LDC1101_MODE_RP_L, LDC_SPEED_BALANCED_1,
+      0, -1);
+  serialCommandsInit(&commandConfig, &initialState);
 
   //Add a filter window for incoming data
   setFilterWindow(10); //Set to 1 for raw data pass-through
@@ -39,14 +52,27 @@ void setup() {
 }
 
 void loop() {
-  ldc1101_measurement_t m = ldc1101_read(kSensorC_F);
-  appendMeasurement(m.Rp_ohms, m.L_uH); //Add the new measurements to their arrays
+  //Check for incoming serial data
+  serialCommandsPoll();
+  serial_command_state_t state = serialCommandsGetState();
+  if (!state.streaming_enabled) {
+    delay(2);
+    return;
+  }
+
+
 
   uint32_t now = millis();
-  if (now - lastPrintMs >= reading_delay_ms) {
+
+  //If enough time has passed, print the latest filtered measurements
+  if (now - lastPrintMs >= state.reading_delay_ms) {
     lastPrintMs = now;
-    Serial.print(">Rp:"); Serial.print(getLatestFilteredRp(), 3);
-    Serial.print(">L:"); Serial.print(getLatestFilteredL(), 6);
+      ldc1101_measurement_t m = ldc1101_read(kSensorC_F);
+      appendMeasurement(m.Rp_ohms, m.L_uH); //Add the new measurements to their arrays
+    float rpToPrint = state.output_rotated ? getLatestRotatedRp() : getLatestFilteredRp();
+    float lToPrint = state.output_rotated ? getLatestRotatedL() : getLatestFilteredL();
+    Serial.print(">Rp:"); Serial.print(rpToPrint, 3);
+    Serial.print(">L:"); Serial.print(lToPrint, 6);
     Serial.print(">t:"); Serial.print(now);
     Serial.println("|xy"); //Indicates x-y values for Teleplot
     //Serial.println(calculateDominantAngle()); //Print the dominant angle in radians
