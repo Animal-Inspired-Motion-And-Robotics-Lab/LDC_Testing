@@ -5,19 +5,25 @@
 #include "measurement_arrays.h"
 #include "serial_commands.h"
 
-const char* fw_version = "0.2.1";
+const char* fw_version = "0.2.2";
 
+//Default delay between readings (reconfigure over serial)
 static constexpr uint32_t kDefaultReadingDelayMs = 25;
 
+//DEFAULTS (reconfigure over serial)
 //For the stacked inductors, L = 11.8, 42.6, 90.0 uH
-static constexpr float kSensorL_H = 42.6e-6f; //uH = 1e-6H
-static constexpr float kSensorC_F = 100e-12f; //pF = 1e-12F
+static constexpr float kSensorL_H = 90.0e-6f; //uH = 1e-6H
+static constexpr float kSensorC_F = 220e-12f; //pF = 1e-12F
 
 //For the stacked inductors, modeled Q values are 23.6, 24.6, 25.6
 //with a 220pF capacitor
-static constexpr float kSensorQ = 30.0f; // Quality factor
+static constexpr float kSensorQ = 20.0f; // Quality factor
+
+//Switch configuration
 static constexpr int kSwitchEnable = 0;
 static constexpr int kSwitchGpio = -1;
+
+//LED Feedback
 static constexpr int kLedPin = LED_BUILTIN;
 static constexpr bool kLedActiveHigh = false;
 
@@ -62,6 +68,7 @@ void loop() {
 
   serialCommandsPoll(); //Check for incoming serial data
   serial_command_state_t state = serialCommandsGetState();
+  serial_command_config_t config = serialCommandsGetConfig();
   if (!state.streaming_enabled) {delay(2); return;} //Skip if streaming is disabled
 
   uint32_t now = millis(); //Timestamp
@@ -69,7 +76,7 @@ void loop() {
   //If enough time has passed, print the latest filtered measurements
   if (now - lastPrintMs >= state.reading_delay_ms) {
     lastPrintMs = now;
-      ldc1101_measurement_t m = ldc1101_read(kSensorC_F);
+      ldc1101_measurement_t m = ldc1101_read(config.sensor_c_f);
       appendMeasurement(m.Rp_ohms, m.L_uH); //Add the new measurements to their arrays
 
     crack_detection_result_t crackResult = {};

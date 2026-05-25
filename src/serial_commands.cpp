@@ -18,6 +18,8 @@ static bool gInitialized = false;
 static constexpr size_t kCommandBufferLen = 96;
 static constexpr long kMaxCalibrationSamples = 50000;
 static constexpr long kMaxReadingDelayMs = 60000;
+static constexpr float kMicroToBase = 1.0e-6f;
+static constexpr float kPicoToBase = 1.0e-12f;
 static char gCommandBuffer[kCommandBufferLen];
 static size_t gCommandLength = 0;
 
@@ -46,8 +48,11 @@ void printHelp() {
   Serial.println("commands:");
   Serial.println("  help");
   Serial.println("  status");
+  Serial.println("  l_h [uH]");
+  Serial.println("  c_f [pF]");
+  Serial.println("  q [ratio]");
   Serial.println("  angle [radians]");
-  Serial.println("  mode lpr|lhr");
+  Serial.println("  mode lrp|lhr");
   Serial.println("  speed accuracy|balanced1|balanced2|fast");
   Serial.println("  stream on|off");
   Serial.println("  delay <ms>");
@@ -68,20 +73,24 @@ void printStatus() {
   Serial.print(speedToString(gState.speed_mode));
   Serial.print(" stream=");
   Serial.print(gState.streaming_enabled ? "on" : "off");
-  Serial.print(" rotated=");
-  Serial.print(gState.rotated ? "on" : "off");
-  Serial.print(" crackdebug=");
-  Serial.print(gState.crack_debug_output ? "on" : "off");
-  Serial.print(" angle_rad=");
-  Serial.print(angleRad, 6);
   Serial.print(" delay_ms=");
   Serial.print((unsigned long)gState.reading_delay_ms);
+  Serial.print(" rotated=");
+  Serial.print(gState.rotated ? "on" : "off");
+  Serial.print(" angle_rad=");
+  Serial.print(angleRad, 6);
   Serial.print(" smoothing=");
   Serial.print((unsigned int)getFilterWindow());
-  Serial.print(" window=");
+  Serial.print(" crack_window=");
   Serial.print((unsigned int)crackDetectionGetWindowSamples());
-  Serial.print(" crack=");
+  Serial.print(" crack_size=");
   Serial.println(crackDetectionGetMinVectorMagnitude(), 6);
+  Serial.print("sensor_l_h=");
+  Serial.print(gConfig.sensor_l_h, 9);
+  Serial.print(" sensor_c_f=");
+  Serial.print(gConfig.sensor_c_f, 12);
+  Serial.print(" sensor_q=");
+  Serial.println(gConfig.sensor_q, 6);
 }
 
 void processCommand(char* line) {
@@ -104,6 +113,75 @@ void processCommand(char* line) {
 
   if (strcmp(token, "status") == 0) {
     printStatus();
+    return;
+  }
+
+  if (strcmp(token, "l_h") == 0 || strcmp(token, "lh") == 0) {
+    char* value = strtok(nullptr, " \t");
+    if (value != nullptr) {
+      char* end = nullptr;
+      float parsed = strtof(value, &end);
+      if (end == value || *end != '\0' || parsed <= 0.0f) {
+        Serial.println("ERR l_h must be > 0 (uH)");
+        return;
+      }
+      char* extra = strtok(nullptr, " \t");
+      if (extra != nullptr) {
+        Serial.println("ERR usage: l_h [uH]");
+        return;
+      }
+      gConfig.sensor_l_h = parsed * kMicroToBase;
+      configureSensor();
+    }
+
+    Serial.print("l_h=");
+    Serial.println(gConfig.sensor_l_h / kMicroToBase, 6);
+    return;
+  }
+
+  if (strcmp(token, "c_f") == 0 || strcmp(token, "cf") == 0) {
+    char* value = strtok(nullptr, " \t");
+    if (value != nullptr) {
+      char* end = nullptr;
+      float parsed = strtof(value, &end);
+      if (end == value || *end != '\0' || parsed <= 0.0f) {
+        Serial.println("ERR c_f must be > 0 (pF)");
+        return;
+      }
+      char* extra = strtok(nullptr, " \t");
+      if (extra != nullptr) {
+        Serial.println("ERR usage: c_f [pF]");
+        return;
+      }
+      gConfig.sensor_c_f = parsed * kPicoToBase;
+      configureSensor();
+    }
+
+    Serial.print("c_f=");
+    Serial.println(gConfig.sensor_c_f / kPicoToBase, 6);
+    return;
+  }
+
+  if (strcmp(token, "q") == 0) {
+    char* value = strtok(nullptr, " \t");
+    if (value != nullptr) {
+      char* end = nullptr;
+      float parsed = strtof(value, &end);
+      if (end == value || *end != '\0' || parsed <= 0.0f) {
+        Serial.println("ERR q must be > 0");
+        return;
+      }
+      char* extra = strtok(nullptr, " \t");
+      if (extra != nullptr) {
+        Serial.println("ERR usage: q [value]");
+        return;
+      }
+      gConfig.sensor_q = parsed;
+      configureSensor();
+    }
+
+    Serial.print("q=");
+    Serial.println(gConfig.sensor_q, 6);
     return;
   }
 
@@ -247,7 +325,7 @@ void processCommand(char* line) {
   if (strcmp(token, "mode") == 0) {
     char* value = strtok(nullptr, " \t");
     if (value == nullptr) {
-      Serial.println("ERR usage: mode lpr|lhr");
+      Serial.println("ERR usage: mode lrp|lhr");
       return;
     }
 
@@ -257,7 +335,7 @@ void processCommand(char* line) {
     } else if (strcmp(value, "lhr") == 0) {
       newMode = LDC1101_MODE_LHR;
     } else {
-      Serial.println("ERR usage: mode lpr|lhr");
+      Serial.println("ERR usage: mode lrp|lhr");
       return;
     }
 
@@ -316,7 +394,9 @@ void processCommand(char* line) {
     return;
   }
 
-  if (strcmp(token, "rotated") == 0) {
+    if (strcmp(token, "rotate") == 0 ||
+        strcmp(token, "rotated") == 0 ||
+        strcmp(token, "rotation") == 0) {
     char* value = strtok(nullptr, " \t");
     if (value == nullptr) {
       Serial.println("ERR usage: rotated on|off");
@@ -385,4 +465,8 @@ void serialCommandsPoll(void) {
 
 serial_command_state_t serialCommandsGetState(void) {
   return gState;
+}
+
+serial_command_config_t serialCommandsGetConfig(void) {
+  return gConfig;
 }

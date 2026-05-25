@@ -29,4 +29,6 @@ void serialCommandsPoll(void);
 
 serial_command_state_t serialCommandsGetState(void);
 
+serial_command_config_t serialCommandsGetConfig(void);
+
 #endif
