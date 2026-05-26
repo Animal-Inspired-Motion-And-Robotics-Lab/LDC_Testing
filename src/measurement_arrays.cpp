@@ -60,6 +60,20 @@ float getLatestFilteredL(void) { return latestFilteredL; }
 float getLatestRotatedRp(void) { return latestRotatedRp; }
 float getLatestRotatedL(void) { return latestRotatedL; }
 
+bool getRecentRotatedSample(size_t samples_ago, float* rp, float* l) {
+  if (rp == nullptr || l == nullptr) {
+    return false;
+  }
+  if (measurementCount == 0 || samples_ago >= measurementCount) {
+    return false;
+  }
+
+  const size_t idx = measurementCount - 1 - samples_ago;
+  *rp = rotatedRpArray[idx];
+  *l = rotatedLArray[idx];
+  return true;
+}
+
 void rotateSample(float rp_in, float l_in, float angle_rad,
                   float& rp_out, float& l_out) {
   float c = cosf(angle_rad);

@@ -12,6 +12,8 @@ typedef struct {
   uint32_t cooldown_ms;
   size_t window_samples;
   float length_estimate_scale;
+  float min_parabola_fit_r2;
+  float min_parabola_sharpness;
 } crack_detection_config_t;
 
 typedef struct {
@@ -20,6 +22,8 @@ typedef struct {
   float vector_l_uH;
   float vector_magnitude;
   float phase_angle_rad;
+  float parabola_fit_r2;
+  float parabola_sharpness;
   float total_length_estimate;
   uint32_t timestamp_ms;
 } crack_detection_result_t;
@@ -34,6 +38,17 @@ size_t crackDetectionGetWindowSamples(void);
 
 void crackDetectionSetMinVectorMagnitude(float min_vector_magnitude);
 float crackDetectionGetMinVectorMagnitude(void);
+
+void crackDetectionSetPhaseWindow(float min_phase_angle_rad,
+                                  float max_phase_angle_rad);
+void crackDetectionGetPhaseWindow(float* min_phase_angle_rad,
+                                  float* max_phase_angle_rad);
+
+void crackDetectionSetParabolaFitMinR2(float min_r2);
+float crackDetectionGetParabolaFitMinR2(void);
+
+void crackDetectionSetParabolaSharpnessMin(float min_sharpness);
+float crackDetectionGetParabolaSharpnessMin(void);
 
 void crackDetectionSetLengthEstimateScale(float length_estimate_scale);
 float crackDetectionGetLengthEstimateScale(void);

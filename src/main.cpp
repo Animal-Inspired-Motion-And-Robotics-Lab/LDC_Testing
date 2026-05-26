@@ -5,7 +5,7 @@
 #include "measurement_arrays.h"
 #include "serial_commands.h"
 
-const char* fw_version = "0.2.3";
+const char* fw_version = "0.2.4";
 
 //Default delay between readings (reconfigure over serial)
 static constexpr uint32_t kDefaultReadingDelayMs = 25;
@@ -31,7 +31,7 @@ static uint32_t lastPrintMs = 0;
 
 void setup() {
   Serial.begin(9600); //Serial connection
-  ledInit(kLedPin, kLedActiveHigh);
+  ledInit(kLedPin, kLedActiveHigh); //LED initialization
   ledFlash(10, 150); // Quick boot indication
   delay(5000); //Startup delay
   Serial.print("LDC Testing, FW Version: ");Serial. println(fw_version);
@@ -53,12 +53,14 @@ void setup() {
   setFilterWindow(10); //Set to 1 for raw data pass-through
 
   crack_detection_config_t crackConfig = {
-      5.0f,  // min_vector_magnitude
-      1.57f, // min_phase_angle_rad (pi/2)
-      3.14f, // max_phase_angle_rad (pi)
-      1000,  // cooldown_ms
-      100,   // window_samples
-      1.0f   // length_estimate_scale
+      0.6f,   // min parabola height (crack size threshold)
+      0.0f,   // min_phase_angle_rad (0)
+      3.14f,  // max_phase_angle_rad (pi)
+      250,   // cooldown_ms
+      80,   // window_samples
+      1.0f,  // length_estimate_scale
+      0.35f, // min_parabola_fit_r2
+      0.03f  // min_parabola_sharpness
   };
   crackDetectionInit(&crackConfig);
 
@@ -83,6 +85,7 @@ void loop() {
     crack_detection_result_t crackResult = {};
     bool crackDetected = crackDetectionCheck(now, &crackResult);
 
+    //Check for cracks only if calibrated and rotated
     if (state.rotated) {
       if (crackDetected) {
         ledFlash(3, 20);
@@ -105,6 +108,28 @@ void loop() {
     Serial.print(">t:"); Serial.print(now);
     Serial.println("|xy"); //Indicates x-y values for Teleplot
 
+    if (state.crack_debug_output) {
+      Serial.print("crack det="); Serial.print(crackResult.detected ? 1 : 0);
+      Serial.print(" mag="); Serial.print(crackResult.vector_magnitude, 6);
+      Serial.print(" phase="); Serial.print(crackResult.phase_angle_rad, 6);
+      Serial.print(" vrp="); Serial.print(crackResult.vector_rp_ohms, 3);
+      Serial.print(" vl="); Serial.print(crackResult.vector_l_uH, 6);
+      Serial.print(" r2="); Serial.print(crackResult.parabola_fit_r2, 4);
+      Serial.print(" sharp="); Serial.print(crackResult.parabola_sharpness, 6);
+      Serial.print(" crack_total="); Serial.print(crackResult.total_length_estimate, 6);
+      Serial.print(" threshold="); Serial.print(crackDetectionGetMinVectorMagnitude(), 6);
+      float crackPhaseMin = 0.0f;
+      float crackPhaseMax = 0.0f;
+      crackDetectionGetPhaseWindow(&crackPhaseMin, &crackPhaseMax);
+      Serial.print(" phase_window=["); Serial.print(crackPhaseMin, 3);
+      Serial.print(","); Serial.print(crackPhaseMax, 3);
+      Serial.print("]");
+      Serial.print(" r2_min="); Serial.print(crackDetectionGetParabolaFitMinR2(), 4);
+      Serial.print(" sharp_min="); Serial.print(crackDetectionGetParabolaSharpnessMin(), 6);
+      Serial.print(" window="); Serial.print((unsigned int)crackDetectionGetWindowSamples());
+      Serial.print(" crack_scale="); Serial.print(crackDetectionGetLengthEstimateScale(), 6);
+      Serial.print(" rotated="); Serial.println(state.rotated ? "on" : "off");
+    }
     
   }
 

@@ -39,6 +39,10 @@ bool getRotationEnabled(void);
 float getLatestRotatedRp(void);
 float getLatestRotatedL(void);
 
+// Get a rotated sample by age: 0 = latest, 1 = previous, etc.
+// Returns false when samples_ago is outside available history.
+bool getRecentRotatedSample(size_t samples_ago, float* rp, float* l);
+
 // Compute latest minus lookback rotated delta.
 // Returns false when there are not enough samples.
 bool getRecentRotatedDelta(size_t lookback_samples, float* delta_rp,
