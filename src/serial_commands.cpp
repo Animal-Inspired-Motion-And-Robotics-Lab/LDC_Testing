@@ -46,12 +46,13 @@ void configureSensor() {
 
 void printHelp() {
   Serial.println("commands:");
-  Serial.println("  help");
   Serial.println("  status");
   Serial.println("  l_h [uH]");
   Serial.println("  c_f [pF]");
   Serial.println("  q [ratio]");
+  Serial.println("  calibrate [samples]");
   Serial.println("  angle [radians]");
+  Serial.println("  rotated on|off");
   Serial.println("  mode lrp|lhr");
   Serial.println("  speed accuracy|balanced1|balanced2|fast");
   Serial.println("  stream on|off");
@@ -61,14 +62,22 @@ void printHelp() {
   Serial.println("  crack [min_magnitude]");
   Serial.println("  crackscale [length_per_unit]");
   Serial.println("  cracklen [reset]");
+  Serial.println("  crack_output on|off");
   Serial.println("  crackdebug on|off");
-  Serial.println("  rotated on|off");
-  Serial.println("  calibrate [samples]");
 }
 
 void printStatus() {
   const float angleRad = getRotationAngle();
+  
+  //Sensor variables
+  Serial.print("sensor_l_h=");
+  Serial.print(gConfig.sensor_l_h, 9);
+  Serial.print(" sensor_c_f=");
+  Serial.print(gConfig.sensor_c_f, 12);
+  Serial.print(" sensor_q=");
+  Serial.println(gConfig.sensor_q, 6);
 
+  //Reading settings
   Serial.print("status mode=");
   Serial.print(modeToString(gState.mode));
   Serial.print(" speed=");
@@ -77,12 +86,16 @@ void printStatus() {
   Serial.print(gState.streaming_enabled ? "on" : "off");
   Serial.print(" delay_ms=");
   Serial.print((unsigned long)gState.reading_delay_ms);
+
+  //Signal processing
   Serial.print(" rotated=");
   Serial.print(gState.rotated ? "on" : "off");
   Serial.print(" angle_rad=");
   Serial.print(angleRad, 6);
   Serial.print(" smoothing=");
   Serial.print((unsigned int)getFilterWindow());
+
+  //Crack detection
   Serial.print(" crack_window=");
   Serial.print((unsigned int)crackDetectionGetWindowSamples());
   Serial.print(" crack_size=");
@@ -91,36 +104,20 @@ void printStatus() {
   Serial.print(crackDetectionGetLengthEstimateScale(), 6);
   Serial.print(" crack_total=");
   Serial.println(crackDetectionGetTotalLengthEstimate(), 6);
-  Serial.print("sensor_l_h=");
-  Serial.print(gConfig.sensor_l_h, 9);
-  Serial.print(" sensor_c_f=");
-  Serial.print(gConfig.sensor_c_f, 12);
-  Serial.print(" sensor_q=");
-  Serial.println(gConfig.sensor_q, 6);
 }
 
 void processCommand(char* line) {
   while (*line == ' ' || *line == '\t') {
     ++line;
   }
-  if (*line == '\0') {
-    return;
-  }
+  if (*line == '\0') {return;}
 
   char* token = strtok(line, " \t");
-  if (token == nullptr) {
-    return;
-  }
+  if (token == nullptr) {return;}
 
-  if (strcmp(token, "help") == 0) {
-    printHelp();
-    return;
-  }
+  if (strcmp(token, "help") == 0) {printHelp(); return;}
 
-  if (strcmp(token, "status") == 0) {
-    printStatus();
-    return;
-  }
+  if (strcmp(token, "status") == 0) {printStatus(); return;}
 
   if (strcmp(token, "l_h") == 0 || strcmp(token, "lh") == 0) {
     char* value = strtok(nullptr, " \t");
@@ -357,6 +354,26 @@ void processCommand(char* line) {
       return;
     }
     Serial.println("ERR usage: crackdebug on|off");
+    return;
+  }
+
+  if (strcmp(token, "crack_output") == 0) {
+    char* value = strtok(nullptr, " \t");
+    if (value == nullptr) {
+      Serial.println("ERR usage: crack_output on|off");
+      return;
+    }
+    if (strcmp(value, "on") == 0) {
+      gState.crack_output = true;
+      Serial.println("OK crack_output on");
+      return;
+    }
+    if (strcmp(value, "off") == 0) {
+      gState.crack_output = false;
+      Serial.println("OK crack_output off");
+      return;
+    }
+    Serial.println("ERR usage: crack_output on|off");
     return;
   }
 

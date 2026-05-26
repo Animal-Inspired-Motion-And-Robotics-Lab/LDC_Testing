@@ -18,6 +18,7 @@ typedef struct {
   ldc_speed_mode_t speed_mode;
   bool streaming_enabled;
   bool rotated;
+  bool crack_output;
   bool crack_debug_output;
   uint32_t reading_delay_ms;
 } serial_command_state_t;

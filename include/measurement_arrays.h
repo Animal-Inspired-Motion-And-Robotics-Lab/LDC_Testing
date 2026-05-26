@@ -9,6 +9,7 @@ void printMeasurementArrays(void);
 float calculateDominantAngle(void);
 float calculateDominantAngleRecent(size_t requested_samples, size_t* used_samples);
 size_t getMeasurementCount(void);
+size_t getMeasurementCountAbsolute(void);
 bool getRecentMeasurementMean(size_t requested_samples, float* mean_rp,
 							  float* mean_l, size_t* used_samples);
 

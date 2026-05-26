@@ -5,14 +5,14 @@
 #include "measurement_arrays.h"
 #include "serial_commands.h"
 
-const char* fw_version = "0.2.2";
+const char* fw_version = "0.2.3";
 
 //Default delay between readings (reconfigure over serial)
 static constexpr uint32_t kDefaultReadingDelayMs = 25;
 
 //DEFAULTS (reconfigure over serial)
 //For the stacked inductors, L = 11.8, 42.6, 90.0 uH
-static constexpr float kSensorL_H = 11.84e-6f; //uH = 1e-6H
+static constexpr float kSensorL_H = 90.00e-6f; //uH = 1e-6H
 static constexpr float kSensorC_F = 220e-12f; //pF = 1e-12F
 
 //For the stacked inductors, modeled Q values are 23.6, 24.6, 25.6
@@ -40,7 +40,7 @@ void setup() {
   serial_command_config_t commandConfig = {kSensorL_H, kSensorC_F, kSensorQ,
       kSwitchEnable, kSwitchGpio};
   serial_command_state_t initialState = {LDC1101_MODE_RP_L, LDC_SPEED_BALANCED_1,
-      true, false, false, kDefaultReadingDelayMs};
+      true, false, true, false, kDefaultReadingDelayMs};
   
   //Initialize the LDC1101
   ldc1101_init();
@@ -92,26 +92,20 @@ void loop() {
     //Print out either rotated or unrotated values
     float rpToPrint = state.rotated ? getLatestRotatedRp() : getLatestFilteredRp();
     float lToPrint = state.rotated ? getLatestRotatedL() : getLatestFilteredL();
-    float crackToPrint = crackDetected ? crackResult.total_length_estimate : 0.0f;
+    float crackToPrint = crackDetected ? crackResult.vector_magnitude : 0.0f;
     if (state.mode == LDC1101_MODE_LHR) { rpToPrint = 0.0f; }
     Serial.print(">Rp:"); Serial.print(rpToPrint, 3);
     Serial.print(">L:"); Serial.print(lToPrint, 6);
-    Serial.print(">crack:"); Serial.print(crackToPrint, 6);
+    if (state.crack_output) {
+      Serial.print(">crack:"); Serial.print(crackToPrint, 6);
+    }
+    if (state.crack_output) {
+      Serial.print(">mag:"); Serial.print(crackResult.vector_magnitude, 6);
+    }
     Serial.print(">t:"); Serial.print(now);
     Serial.println("|xy"); //Indicates x-y values for Teleplot
 
-    if (state.crack_debug_output) {
-      Serial.print("crack det="); Serial.print(crackResult.detected ? 1 : 0);
-      Serial.print(" mag="); Serial.print(crackResult.vector_magnitude, 6);
-      Serial.print(" phase="); Serial.print(crackResult.phase_angle_rad, 6);
-      Serial.print(" vrp="); Serial.print(crackResult.vector_rp_ohms, 3);
-      Serial.print(" vl="); Serial.print(crackResult.vector_l_uH, 6);
-      Serial.print(" crack_total="); Serial.print(crackResult.total_length_estimate, 6);
-      Serial.print(" threshold="); Serial.print(crackDetectionGetMinVectorMagnitude(), 6);
-      Serial.print(" window="); Serial.print((unsigned int)crackDetectionGetWindowSamples());
-      Serial.print(" crack_scale="); Serial.print(crackDetectionGetLengthEstimateScale(), 6);
-      Serial.print(" rotated="); Serial.println(state.rotated ? "on" : "off");
-    }
+    
   }
 
 }

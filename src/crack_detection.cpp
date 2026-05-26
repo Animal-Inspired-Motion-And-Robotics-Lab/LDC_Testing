@@ -12,6 +12,14 @@ static bool gInitialized = false;
 static uint32_t gLastDetectionMs = 0;
 static float gTotalLengthEstimate = 0.0f;
 
+// Peak-tracking state machine.
+enum CrackTrackingState { CD_IDLE = 0, CD_TRACKING };
+static CrackTrackingState gTrackingState = CD_IDLE;
+static float gPeakMagnitude = 0.0f;
+static float gPeakVectorRp = 0.0f;
+static float gPeakVectorL = 0.0f;
+static float gPeakPhaseAngle = 0.0f;
+
 }  // namespace
 
 void crackDetectionInit(const crack_detection_config_t* config) {
@@ -39,6 +47,11 @@ void crackDetectionInit(const crack_detection_config_t* config) {
 
   gLastDetectionMs = 0;
   gTotalLengthEstimate = 0.0f;
+  gTrackingState = CD_IDLE;
+  gPeakMagnitude = 0.0f;
+  gPeakVectorRp = 0.0f;
+  gPeakVectorL = 0.0f;
+  gPeakPhaseAngle = 0.0f;
   gInitialized = true;
 }
 
@@ -63,7 +76,6 @@ bool crackDetectionCheck(uint32_t timestamp_ms, crack_detection_result_t* result
     return false;
   }
 
-  // Evaluate event direction from motion in rotated phase space.
   float magnitude = sqrtf(vectorRp * vectorRp + vectorL * vectorL);
   float phaseAngle = atan2f(vectorL, vectorRp);
 
@@ -78,23 +90,51 @@ bool crackDetectionCheck(uint32_t timestamp_ms, crack_detection_result_t* result
     return false;
   }
 
+  // Enforce post-detection cooldown; reset any in-progress tracking.
+  if (gLastDetectionMs != 0) {
+    const uint32_t elapsed = timestamp_ms - gLastDetectionMs;
+    if (elapsed < gConfig.cooldown_ms) {
+      gTrackingState = CD_IDLE;
+      return false;
+    }
+  }
+
   const bool aboveMagnitudeThreshold = (magnitude >= gConfig.min_vector_magnitude);
   const bool inPhaseWindow = (phaseAngle >= gConfig.min_phase_angle_rad) &&
                              (phaseAngle <= gConfig.max_phase_angle_rad);
 
-  if (!aboveMagnitudeThreshold || !inPhaseWindow) {
+  if (gTrackingState == CD_IDLE) {
+    // Enter tracking when the window vector first qualifies.
+    if (aboveMagnitudeThreshold && inPhaseWindow) {
+      gTrackingState = CD_TRACKING;
+      gPeakMagnitude = magnitude;
+      gPeakVectorRp = vectorRp;
+      gPeakVectorL = vectorL;
+      gPeakPhaseAngle = phaseAngle;
+    }
     return false;
   }
 
-  const uint32_t elapsed = timestamp_ms - gLastDetectionMs;
-  if (gLastDetectionMs != 0 && elapsed < gConfig.cooldown_ms) {
+  // CD_TRACKING: update peak while magnitude is still growing.
+  if (magnitude > gPeakMagnitude) {
+    gPeakMagnitude = magnitude;
+    gPeakVectorRp = vectorRp;
+    gPeakVectorL = vectorL;
+    gPeakPhaseAngle = phaseAngle;
     return false;
   }
 
+  // Magnitude has started to decrease — fire detection with the stored peak.
+  gTrackingState = CD_IDLE;
   gLastDetectionMs = timestamp_ms;
-  gTotalLengthEstimate += (magnitude * gConfig.length_estimate_scale);
+  gTotalLengthEstimate += (gPeakMagnitude * gConfig.length_estimate_scale);
+
   if (result != nullptr) {
     result->detected = true;
+    result->vector_rp_ohms = gPeakVectorRp;
+    result->vector_l_uH = gPeakVectorL;
+    result->vector_magnitude = gPeakMagnitude;
+    result->phase_angle_rad = gPeakPhaseAngle;
     result->total_length_estimate = gTotalLengthEstimate;
     result->timestamp_ms = timestamp_ms;
   }

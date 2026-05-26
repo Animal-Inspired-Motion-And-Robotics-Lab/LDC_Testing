@@ -10,6 +10,7 @@ static float L_array[array_length] = {0.0f};
 static float rotatedRpArray[array_length] = {0.0f};
 static float rotatedLArray[array_length] = {0.0f};
 static size_t measurementCount = 0;
+static size_t absoluteMeasurementCount = 0;
 
 static constexpr size_t kMaxFilterWindow = 512;
 static float rpRing[kMaxFilterWindow] = {0.0f};
@@ -86,6 +87,7 @@ bool getRotationEnabled(void) { return rotationEnabled; }
 
 void appendMeasurement(float rp_ohms, float l_uH) {
   float rp_f, l_f;
+  absoluteMeasurementCount++;
   filterSample(rp_ohms, l_uH, rp_f, l_f);
 
   if (rotationEnabled) {
@@ -144,6 +146,10 @@ void printMeasurementArrays(void) {
 
 size_t getMeasurementCount(void) {
   return measurementCount;
+}
+
+size_t getMeasurementCountAbsolute(void) {
+  return absoluteMeasurementCount;
 }
 
 bool getRecentMeasurementMean(size_t requested_samples, float* mean_rp,
