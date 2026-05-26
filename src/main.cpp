@@ -53,14 +53,10 @@ void setup() {
   setFilterWindow(10); //Set to 1 for raw data pass-through
 
   crack_detection_config_t crackConfig = {
-      0.6f,   // min parabola height (crack size threshold)
-      0.0f,   // min_phase_angle_rad (0)
-      3.14f,  // max_phase_angle_rad (pi)
-      250,   // cooldown_ms
-      80,   // window_samples
-      1.0f,  // length_estimate_scale
-      0.35f, // min_parabola_fit_r2
-      0.03f  // min_parabola_sharpness
+      0.01f,  // threshold above centered x-axis
+      100,   // window_samples
+      25,    // min_points above threshold
+      1.0f   // length_estimate_scale
   };
   crackDetectionInit(&crackConfig);
 
@@ -95,7 +91,7 @@ void loop() {
     //Print out either rotated or unrotated values
     float rpToPrint = state.rotated ? getLatestRotatedRp() : getLatestFilteredRp();
     float lToPrint = state.rotated ? getLatestRotatedL() : getLatestFilteredL();
-    float crackToPrint = crackDetected ? crackResult.vector_magnitude : 0.0f;
+    float crackToPrint = crackDetected ? crackResult.crack_size : 0.0f;
     if (state.mode == LDC1101_MODE_LHR) { rpToPrint = 0.0f; }
     Serial.print(">Rp:"); Serial.print(rpToPrint, 3);
     Serial.print(">L:"); Serial.print(lToPrint, 6);
@@ -103,29 +99,19 @@ void loop() {
       Serial.print(">crack:"); Serial.print(crackToPrint, 6);
     }
     if (state.crack_output) {
-      Serial.print(">mag:"); Serial.print(crackResult.vector_magnitude, 6);
+      Serial.print(">mag:"); Serial.print(crackResult.current_window_max, 6);
     }
     Serial.print(">t:"); Serial.print(now);
     Serial.println("|xy"); //Indicates x-y values for Teleplot
 
     if (state.crack_debug_output) {
       Serial.print("crack det="); Serial.print(crackResult.detected ? 1 : 0);
-      Serial.print(" mag="); Serial.print(crackResult.vector_magnitude, 6);
-      Serial.print(" phase="); Serial.print(crackResult.phase_angle_rad, 6);
-      Serial.print(" vrp="); Serial.print(crackResult.vector_rp_ohms, 3);
-      Serial.print(" vl="); Serial.print(crackResult.vector_l_uH, 6);
-      Serial.print(" r2="); Serial.print(crackResult.parabola_fit_r2, 4);
-      Serial.print(" sharp="); Serial.print(crackResult.parabola_sharpness, 6);
+      Serial.print(" crack="); Serial.print(crackResult.crack_size, 6);
+      Serial.print(" max="); Serial.print(crackResult.current_window_max, 6);
+      Serial.print(" points="); Serial.print((unsigned int)crackResult.points_above_threshold);
       Serial.print(" crack_total="); Serial.print(crackResult.total_length_estimate, 6);
-      Serial.print(" threshold="); Serial.print(crackDetectionGetMinVectorMagnitude(), 6);
-      float crackPhaseMin = 0.0f;
-      float crackPhaseMax = 0.0f;
-      crackDetectionGetPhaseWindow(&crackPhaseMin, &crackPhaseMax);
-      Serial.print(" phase_window=["); Serial.print(crackPhaseMin, 3);
-      Serial.print(","); Serial.print(crackPhaseMax, 3);
-      Serial.print("]");
-      Serial.print(" r2_min="); Serial.print(crackDetectionGetParabolaFitMinR2(), 4);
-      Serial.print(" sharp_min="); Serial.print(crackDetectionGetParabolaSharpnessMin(), 6);
+      Serial.print(" threshold="); Serial.print(crackDetectionGetThreshold(), 6);
+      Serial.print(" min_points="); Serial.print((unsigned int)crackDetectionGetMinPoints());
       Serial.print(" window="); Serial.print((unsigned int)crackDetectionGetWindowSamples());
       Serial.print(" crack_scale="); Serial.print(crackDetectionGetLengthEstimateScale(), 6);
       Serial.print(" rotated="); Serial.println(state.rotated ? "on" : "off");
