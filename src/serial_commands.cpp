@@ -58,13 +58,13 @@ void printHelp() {
   Serial.println("  stream on|off");
   Serial.println("  delay <ms>");
   Serial.println("  smoothing <n>");
-  Serial.println("  window [n]                 // crack detection window samples");
-  Serial.println("  crack [threshold]          // threshold above centered x-axis");
-  Serial.println("  crackpoints [n]            // minimum points above threshold");
-  Serial.println("  crackscale [length_per_unit]");
-  Serial.println("  cracklen [reset]");
-  Serial.println("  crack_output on|off");
-  Serial.println("  crackdebug on|off");
+  Serial.println("  window [n]                 // crack tuning: parabola fit window samples");
+  Serial.println("  crack [threshold]          // crack tuning: parabola peak above baseline");
+  Serial.println("  crackr2 [0..1]             // crack tuning: minimum parabola R2 fit");
+  Serial.println("  crackphase [min max]       // crack tuning: allowed phase angle range (rad)");
+  Serial.println("  cracklen [reset]           // show/reset accumulated length estimate");
+  Serial.println("  crack_output on|off        // emit >mag >half >width for qualified cracks");
+  Serial.println("  crackdebug on|off          // print crack detector debug state");
 }
 
 void printStatus() {
@@ -101,8 +101,12 @@ void printStatus() {
   Serial.print((unsigned int)crackDetectionGetWindowSamples());
   Serial.print(" crack_threshold=");
   Serial.print(crackDetectionGetThreshold(), 6);
-  Serial.print(" crack_points=");
-  Serial.print((unsigned int)crackDetectionGetMinPoints());
+  Serial.print(" crack_r2=");
+  Serial.print(crackDetectionGetMinParabolaR2(), 6);
+  Serial.print(" crack_phase_min=");
+  Serial.print(crackDetectionGetMinPhaseAngleRad(), 6);
+  Serial.print(" crack_phase_max=");
+  Serial.print(crackDetectionGetMaxPhaseAngleRad(), 6);
   Serial.print(" crack_scale=");
   Serial.print(crackDetectionGetLengthEstimateScale(), 6);
   Serial.print(" crack_total=");
@@ -308,19 +312,55 @@ void processCommand(char* line) {
     return;
   }
 
-  if (strcmp(token, "crackpoints") == 0) {
+  if (strcmp(token, "crackr2") == 0) {
     char* value = strtok(nullptr, " \t");
     if (value != nullptr) {
-      long parsed = strtol(value, nullptr, 10);
-      if (parsed <= 0) {
-        Serial.println("ERR crackpoints must be >= 1");
+      char* end = nullptr;
+      float parsed = strtof(value, &end);
+      if (end == value || *end != '\0' || parsed < 0.0f || parsed > 1.0f) {
+        Serial.println("ERR crackr2 must be 0..1");
         return;
       }
-      crackDetectionSetMinPoints((size_t)parsed);
+      crackDetectionSetMinParabolaR2(parsed);
     }
 
-    Serial.print("crackpoints=");
-    Serial.println((unsigned int)crackDetectionGetMinPoints());
+    Serial.print("crackr2=");
+    Serial.println(crackDetectionGetMinParabolaR2(), 6);
+    return;
+  }
+
+  if (strcmp(token, "crackphase") == 0) {
+    char* minValue = strtok(nullptr, " \t");
+    if (minValue != nullptr) {
+      char* maxValue = strtok(nullptr, " \t");
+      if (maxValue == nullptr) {
+        Serial.println("ERR usage: crackphase [min max]");
+        return;
+      }
+
+      char* minEnd = nullptr;
+      char* maxEnd = nullptr;
+      float parsedMin = strtof(minValue, &minEnd);
+      float parsedMax = strtof(maxValue, &maxEnd);
+      if (minEnd == minValue || *minEnd != '\0' ||
+          maxEnd == maxValue || *maxEnd != '\0') {
+        Serial.println("ERR usage: crackphase [min max]");
+        return;
+      }
+
+      char* extra = strtok(nullptr, " \t");
+      if (extra != nullptr) {
+        Serial.println("ERR usage: crackphase [min max]");
+        return;
+      }
+
+      crackDetectionSetPhaseAngleRange(parsedMin, parsedMax);
+    }
+
+    Serial.print("crackphase_min=");
+    Serial.print(crackDetectionGetMinPhaseAngleRad(), 6);
+    Serial.print(" crackphase_max=");
+    Serial.println(crackDetectionGetMaxPhaseAngleRad(), 6);
     return;
   }
 

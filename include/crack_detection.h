@@ -8,15 +8,19 @@
 typedef struct {
   float threshold;
   size_t window_samples;
-  size_t min_points;
+  float min_parabola_r2;
+  float min_phase_angle_rad;
+  float max_phase_angle_rad;
   float length_estimate_scale;
 } crack_detection_config_t;
 
 typedef struct {
   bool detected;
   float crack_size;
-  float current_window_max;
-  size_t points_above_threshold;
+  float fit_peak_height;
+  float fit_half_peak_height;
+  float fit_width_samples;
+  float fit_r2;
   float total_length_estimate;
   uint32_t timestamp_ms;
 } crack_detection_result_t;
@@ -32,8 +36,12 @@ size_t crackDetectionGetWindowSamples(void);
 void crackDetectionSetThreshold(float threshold);
 float crackDetectionGetThreshold(void);
 
-void crackDetectionSetMinPoints(size_t min_points);
-size_t crackDetectionGetMinPoints(void);
+void crackDetectionSetMinParabolaR2(float min_parabola_r2);
+float crackDetectionGetMinParabolaR2(void);
+
+void crackDetectionSetPhaseAngleRange(float min_phase_angle_rad, float max_phase_angle_rad);
+float crackDetectionGetMinPhaseAngleRad(void);
+float crackDetectionGetMaxPhaseAngleRad(void);
 
 void crackDetectionSetLengthEstimateScale(float length_estimate_scale);
 float crackDetectionGetLengthEstimateScale(void);
