@@ -12,7 +12,7 @@ static constexpr uint32_t kDefaultReadingDelayMs = 25;
 
 //DEFAULTS (reconfigure over serial)
 //For the stacked inductors, L = 11.8, 42.6, 90.0 uH
-static constexpr float kSensorL_H = 90.0e-6f; //uH = 1e-6H
+static constexpr float kSensorL_H = 11.84e-6f; //uH = 1e-6H
 static constexpr float kSensorC_F = 220e-12f; //pF = 1e-12F
 
 //For the stacked inductors, modeled Q values are 23.6, 24.6, 25.6
@@ -57,7 +57,8 @@ void setup() {
       1.57f, // min_phase_angle_rad (pi/2)
       3.14f, // max_phase_angle_rad (pi)
       1000,  // cooldown_ms
-      100     // window_samples
+      100,   // window_samples
+      1.0f   // length_estimate_scale
   };
   crackDetectionInit(&crackConfig);
 
@@ -91,9 +92,11 @@ void loop() {
     //Print out either rotated or unrotated values
     float rpToPrint = state.rotated ? getLatestRotatedRp() : getLatestFilteredRp();
     float lToPrint = state.rotated ? getLatestRotatedL() : getLatestFilteredL();
+    float crackToPrint = crackDetected ? crackResult.total_length_estimate : 0.0f;
     if (state.mode == LDC1101_MODE_LHR) { rpToPrint = 0.0f; }
     Serial.print(">Rp:"); Serial.print(rpToPrint, 3);
     Serial.print(">L:"); Serial.print(lToPrint, 6);
+    Serial.print(">crack:"); Serial.print(crackToPrint, 6);
     Serial.print(">t:"); Serial.print(now);
     Serial.println("|xy"); //Indicates x-y values for Teleplot
 
@@ -103,8 +106,10 @@ void loop() {
       Serial.print(" phase="); Serial.print(crackResult.phase_angle_rad, 6);
       Serial.print(" vrp="); Serial.print(crackResult.vector_rp_ohms, 3);
       Serial.print(" vl="); Serial.print(crackResult.vector_l_uH, 6);
+      Serial.print(" crack_total="); Serial.print(crackResult.total_length_estimate, 6);
       Serial.print(" threshold="); Serial.print(crackDetectionGetMinVectorMagnitude(), 6);
       Serial.print(" window="); Serial.print((unsigned int)crackDetectionGetWindowSamples());
+      Serial.print(" crack_scale="); Serial.print(crackDetectionGetLengthEstimateScale(), 6);
       Serial.print(" rotated="); Serial.println(state.rotated ? "on" : "off");
     }
   }

@@ -59,6 +59,8 @@ void printHelp() {
   Serial.println("  smoothing <n>");
   Serial.println("  window [n]");
   Serial.println("  crack [min_magnitude]");
+  Serial.println("  crackscale [length_per_unit]");
+  Serial.println("  cracklen [reset]");
   Serial.println("  crackdebug on|off");
   Serial.println("  rotated on|off");
   Serial.println("  calibrate [samples]");
@@ -84,7 +86,11 @@ void printStatus() {
   Serial.print(" crack_window=");
   Serial.print((unsigned int)crackDetectionGetWindowSamples());
   Serial.print(" crack_size=");
-  Serial.println(crackDetectionGetMinVectorMagnitude(), 6);
+  Serial.print(crackDetectionGetMinVectorMagnitude(), 6);
+  Serial.print(" crack_scale=");
+  Serial.print(crackDetectionGetLengthEstimateScale(), 6);
+  Serial.print(" crack_total=");
+  Serial.println(crackDetectionGetTotalLengthEstimate(), 6);
   Serial.print("sensor_l_h=");
   Serial.print(gConfig.sensor_l_h, 9);
   Serial.print(" sensor_c_f=");
@@ -299,6 +305,38 @@ void processCommand(char* line) {
 
     Serial.print("crack=");
     Serial.println(crackDetectionGetMinVectorMagnitude(), 6);
+    return;
+  }
+
+  if (strcmp(token, "crackscale") == 0) {
+    char* value = strtok(nullptr, " \t");
+    if (value != nullptr) {
+      char* end = nullptr;
+      float parsed = strtof(value, &end);
+      if (end == value || *end != '\0' || parsed < 0.0f) {
+        Serial.println("ERR crackscale must be >= 0");
+        return;
+      }
+      crackDetectionSetLengthEstimateScale(parsed);
+    }
+
+    Serial.print("crackscale=");
+    Serial.println(crackDetectionGetLengthEstimateScale(), 6);
+    return;
+  }
+
+  if (strcmp(token, "cracklen") == 0) {
+    char* value = strtok(nullptr, " \t");
+    if (value != nullptr) {
+      if (strcmp(value, "reset") != 0) {
+        Serial.println("ERR usage: cracklen [reset]");
+        return;
+      }
+      crackDetectionResetTotalLengthEstimate();
+    }
+
+    Serial.print("cracklen=");
+    Serial.println(crackDetectionGetTotalLengthEstimate(), 6);
     return;
   }
 

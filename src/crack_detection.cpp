@@ -7,9 +7,10 @@
 namespace {
 
 static constexpr float kPi = 3.14159265358979323846f;
-static crack_detection_config_t gConfig = {3.0f, (kPi * 0.5f), kPi, 1000, 50};
+static crack_detection_config_t gConfig = {3.0f, (kPi * 0.5f), kPi, 1000, 50, 1.0f};
 static bool gInitialized = false;
 static uint32_t gLastDetectionMs = 0;
+static float gTotalLengthEstimate = 0.0f;
 
 }  // namespace
 
@@ -32,7 +33,12 @@ void crackDetectionInit(const crack_detection_config_t* config) {
     gConfig.window_samples = 1;
   }
 
+  if (gConfig.length_estimate_scale < 0.0f) {
+    gConfig.length_estimate_scale = 0.0f;
+  }
+
   gLastDetectionMs = 0;
+  gTotalLengthEstimate = 0.0f;
   gInitialized = true;
 }
 
@@ -47,6 +53,7 @@ bool crackDetectionCheck(uint32_t timestamp_ms, crack_detection_result_t* result
     result->vector_l_uH = 0.0f;
     result->vector_magnitude = 0.0f;
     result->phase_angle_rad = NAN;
+    result->total_length_estimate = gTotalLengthEstimate;
     result->timestamp_ms = timestamp_ms;
   }
 
@@ -85,8 +92,10 @@ bool crackDetectionCheck(uint32_t timestamp_ms, crack_detection_result_t* result
   }
 
   gLastDetectionMs = timestamp_ms;
+  gTotalLengthEstimate += (magnitude * gConfig.length_estimate_scale);
   if (result != nullptr) {
     result->detected = true;
+    result->total_length_estimate = gTotalLengthEstimate;
     result->timestamp_ms = timestamp_ms;
   }
 
@@ -127,4 +136,36 @@ float crackDetectionGetMinVectorMagnitude(void) {
     crackDetectionInit(nullptr);
   }
   return gConfig.min_vector_magnitude;
+}
+
+void crackDetectionSetLengthEstimateScale(float length_estimate_scale) {
+  if (!gInitialized) {
+    crackDetectionInit(nullptr);
+  }
+
+  if (length_estimate_scale < 0.0f) {
+    length_estimate_scale = 0.0f;
+  }
+  gConfig.length_estimate_scale = length_estimate_scale;
+}
+
+float crackDetectionGetLengthEstimateScale(void) {
+  if (!gInitialized) {
+    crackDetectionInit(nullptr);
+  }
+  return gConfig.length_estimate_scale;
+}
+
+float crackDetectionGetTotalLengthEstimate(void) {
+  if (!gInitialized) {
+    crackDetectionInit(nullptr);
+  }
+  return gTotalLengthEstimate;
+}
+
+void crackDetectionResetTotalLengthEstimate(void) {
+  if (!gInitialized) {
+    crackDetectionInit(nullptr);
+  }
+  gTotalLengthEstimate = 0.0f;
 }

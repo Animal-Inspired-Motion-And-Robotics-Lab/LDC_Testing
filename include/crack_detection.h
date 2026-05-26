@@ -11,6 +11,7 @@ typedef struct {
   float max_phase_angle_rad;
   uint32_t cooldown_ms;
   size_t window_samples;
+  float length_estimate_scale;
 } crack_detection_config_t;
 
 typedef struct {
@@ -19,6 +20,7 @@ typedef struct {
   float vector_l_uH;
   float vector_magnitude;
   float phase_angle_rad;
+  float total_length_estimate;
   uint32_t timestamp_ms;
 } crack_detection_result_t;
 
@@ -32,5 +34,11 @@ size_t crackDetectionGetWindowSamples(void);
 
 void crackDetectionSetMinVectorMagnitude(float min_vector_magnitude);
 float crackDetectionGetMinVectorMagnitude(void);
+
+void crackDetectionSetLengthEstimateScale(float length_estimate_scale);
+float crackDetectionGetLengthEstimateScale(void);
+
+float crackDetectionGetTotalLengthEstimate(void);
+void crackDetectionResetTotalLengthEstimate(void);
 
 #endif
