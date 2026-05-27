@@ -2,7 +2,7 @@
 //
 // Storage model:
 //   - Each saved material gets its own NVS namespace, named after the material
-//     ("aluminum", "steel", ...). Every user-configurable setting is one key in
+//     ("aluminum", "ss", ...). Every user-configurable setting is one key in
 //     that namespace. A "v" key holds the schema version and doubles as the
 //     "this profile exists" sentinel.
 //   - One reserved namespace, "_materials", holds a '\n'-delimited list of the
@@ -23,6 +23,7 @@
 
 #include <Arduino.h>
 #include <Preferences.h>
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -121,6 +122,23 @@ void indexRemove(const char* name) {
   }
   idx.putString(kIndexKey, out);
   idx.end();
+}
+
+constexpr float kPi = 3.14159265358979323846f;
+
+// Smallest distance between two trend-line orientations, in [0, π/2]. The
+// rotation angle is π-periodic (it's atan of a slope, so θ and θ±π describe the
+// same line), so we fold the raw difference into (−π/2, π/2] before taking the
+// magnitude. This also makes the near-vertical sign flip — e.g. +89° vs −89°,
+// the same near-vertical trend — read as 2° apart rather than 178°.
+float orientationDistance(float a, float b) {
+  float d = fmodf(a - b, kPi);
+  if (d > kPi * 0.5f) {
+    d -= kPi;
+  } else if (d < -kPi * 0.5f) {
+    d += kPi;
+  }
+  return fabsf(d);
 }
 
 }  // namespace
@@ -271,18 +289,103 @@ void memoryListMaterials(void) {
   }
 
   Serial.println("materials:");
+  char name[MEMORY_MAX_NAME_LEN + 1];
   const char* p = buf;
   while (*p != '\0') {
     const char* nl = strchr(p, '\n');
     size_t lineLen = nl ? (size_t)(nl - p) : strlen(p);
-    if (lineLen > 0) {
-      Serial.print("  ");
-      for (size_t i = 0; i < lineLen; ++i) {
-        Serial.write(p[i]);
+    if (lineLen > 0 && lineLen <= MEMORY_MAX_NAME_LEN) {
+      memcpy(name, p, lineLen);
+      name[lineLen] = '\0';
+
+      // Pull the rotation angle out of the material's own namespace.
+      float angle = NAN;
+      Preferences prefs;
+      if (prefs.begin(name, true)) {
+        if (prefs.getUChar("v", 0) != 0) {
+          angle = prefs.getFloat("angle", NAN);
+        }
+        prefs.end();
       }
-      Serial.println();
+
+      Serial.print("  ");
+      Serial.print(name);
+      Serial.print(" angle=");
+      Serial.println(angle, 6);
     }
     if (nl == nullptr) {break;}
     p = nl + 1;
   }
+}
+
+void memoryMatchByAngle(float target_angle_rad) {
+  // Walk the index, opening each saved profile to read its stored "angle", and
+  // keep the one whose orientation is closest to the target.
+  Preferences idx;
+  if (!idx.begin(kIndexNamespace, true)) {
+    Serial.println("material: none saved");
+    return;
+  }
+
+  char buf[kIndexBufferLen];
+  buf[0] = '\0';
+  idx.getString(kIndexKey, buf, sizeof(buf));
+  idx.end();
+
+  if (buf[0] == '\0') {
+    Serial.println("material: none saved");
+    return;
+  }
+
+  char bestName[MEMORY_MAX_NAME_LEN + 1];
+  bestName[0] = '\0';
+  float bestAngle = NAN;
+  float bestDist = NAN;
+
+  char name[MEMORY_MAX_NAME_LEN + 1];
+  const char* p = buf;
+  while (*p != '\0') {
+    const char* nl = strchr(p, '\n');
+    size_t lineLen = nl ? (size_t)(nl - p) : strlen(p);
+    if (lineLen > 0 && lineLen <= MEMORY_MAX_NAME_LEN) {
+      memcpy(name, p, lineLen);
+      name[lineLen] = '\0';
+
+      Preferences prefs;
+      if (prefs.begin(name, true)) {
+        // Skip profiles that don't exist or saved a degenerate (NaN) angle.
+        if (prefs.getUChar("v", 0) != 0) {
+          float angle = prefs.getFloat("angle", NAN);
+          if (!isnan(angle)) {
+            float dist = orientationDistance(target_angle_rad, angle);
+            if (isnan(bestDist) || dist < bestDist) {
+              bestDist = dist;
+              bestAngle = angle;
+              strcpy(bestName, name);
+            }
+          }
+        }
+        prefs.end();
+      }
+    }
+    if (nl == nullptr) {break;}
+    p = nl + 1;
+  }
+
+  if (bestName[0] == '\0') {
+    Serial.println("material: no saved angles to compare");
+    return;
+  }
+
+  // Report-only: print the match; the operator runs `retrieve` to load it.
+  Serial.print("material: closest=");
+  Serial.print(bestName);
+  Serial.print(" saved_angle=");
+  Serial.print(bestAngle, 6);
+  Serial.print(" current_angle=");
+  Serial.print(target_angle_rad, 6);
+  Serial.print(" diff_rad=");
+  Serial.print(bestDist, 6);
+  Serial.print(" diff_deg=");
+  Serial.println(bestDist * (180.0f / kPi), 3);
 }

@@ -44,8 +44,17 @@ bool memoryRetrieveMaterial(const char* material,
 // name is invalid or no profile existed under it.
 bool memoryForgetMaterial(const char* material);
 
-// Print the saved material names over Serial (one per line), or a "none"
-// notice when the index is empty.
+// Print the saved materials over Serial, one per line as "<name> angle=<rad>"
+// (the stored rotation angle), or a "none" notice when the index is empty.
 void memoryListMaterials(void);
+
+// Identify which saved profile best matches `target_angle_rad` (typically the
+// just-calibrated rotation angle from getRotationAngle()) and print the match
+// over Serial, along with the saved/current angles and their difference.
+// Matching uses a π-periodic orientation distance, since the rotation angle is
+// a line orientation (it comes from atan of a slope, so θ and θ±π are the same
+// trend). Report-only: it changes nothing — run `retrieve <name>` to load the
+// match. Prints a notice when no profiles (or no saved angles) exist.
+void memoryMatchByAngle(float target_angle_rad);
 
 #endif

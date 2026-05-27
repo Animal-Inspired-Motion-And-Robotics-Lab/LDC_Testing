@@ -110,7 +110,8 @@ void printHelp() {
   // Persistent per-material profiles (saved to NVS flash).
   Serial.println("  save <material>            // store all settings under a name");
   Serial.println("  retrieve <material>        // load settings saved under a name");
-  Serial.println("  materials                  // list saved material names");
+  Serial.println("  materials                  // list saved materials + their rotation angle");
+  Serial.println("  get_material               // name the saved material whose angle is closest to the current calibration");
   Serial.println("  forget <material>          // delete a saved material");
 }
 
@@ -673,6 +674,19 @@ void processCommand(char* line) {
       return;
     }
     memoryListMaterials();
+    return;
+  }
+
+  // `get_material` identifies the closest saved profile to the *current*
+  // rotation angle — run it right after `calibrate` on an unknown substrate to
+  // see which stored material it most resembles. Named distinctly from
+  // `materials` (the list command). Report-only; doesn't load.
+  if (strcmp(token, "get_material") == 0) {
+    if (strtok(nullptr, " \t") != nullptr) {
+      Serial.println("ERR usage: get_material");
+      return;
+    }
+    memoryMatchByAngle(getRotationAngle());
     return;
   }
 
