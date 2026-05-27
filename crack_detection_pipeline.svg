@@ -1,0 +1,847 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 1200 1500"
+   width="1200"
+   height="1500"
+   font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+   version="1.1"
+   id="svg92"
+   sodipodi:docname="crack_detection_pipeline.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview92"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.73350543"
+     inkscape:cx="520.78687"
+     inkscape:cy="147.23817"
+     inkscape:window-width="1600"
+     inkscape:window-height="978"
+     inkscape:window-x="-6"
+     inkscape:window-y="-6"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg92" />
+  <defs
+     id="defs3">
+    <marker
+       id="arrow"
+       viewBox="0 0 10 10"
+       refX="9"
+       refY="5"
+       markerWidth="7"
+       markerHeight="7"
+       orient="auto-start-reverse">
+      <path
+         d="M0,0 L10,5 L0,10 z"
+         fill="#333"
+         id="path1" />
+    </marker>
+    <marker
+       id="arrow-red"
+       viewBox="0 0 10 10"
+       refX="9"
+       refY="5"
+       markerWidth="6"
+       markerHeight="6"
+       orient="auto-start-reverse">
+      <path
+         d="M0,0 L10,5 L0,10 z"
+         fill="#c62828"
+         id="path2" />
+    </marker>
+    <marker
+       id="arrow-purple"
+       viewBox="0 0 10 10"
+       refX="9"
+       refY="5"
+       markerWidth="6"
+       markerHeight="6"
+       orient="auto-start-reverse">
+      <path
+         d="M0,0 L10,5 L0,10 z"
+         fill="#6a1b9a"
+         id="path3" />
+    </marker>
+    <style
+       id="style3">
+      .title { font-size: 22px; font-weight: 700; fill: #1a1a1a; }
+      .subtitle { font-size: 13px; fill: #555; }
+      .step { font-size: 14px; font-weight: 600; fill: #111; }
+      .step-big { font-size: 16px; font-weight: 700; fill: #1b5e20; }
+      .sub { font-size: 11.5px; fill: #222; }
+      .code { font-family: 'Consolas', 'Courier New', monospace; font-size: 11px; fill: #1565c0; }
+      .code-purple { font-family: 'Consolas', 'Courier New', monospace; font-size: 11px; fill: #6a1b9a; }
+      .code-green { font-family: 'Consolas', 'Courier New', monospace; font-size: 11px; fill: #1b5e20; }
+      .reject-label { font-family: 'Consolas', 'Courier New', monospace; font-size: 11.5px; font-weight: 700; fill: #b71c1c; }
+      .reject-desc { font-size: 11px; fill: #555; }
+      .annotation { font-size: 10.5px; fill: #777; font-style: italic; }
+      .yesno { font-size: 11px; font-weight: 700; fill: #333; }
+      .yesno-no { font-size: 11px; font-weight: 700; fill: #c62828; }
+      .group-label { font-size: 10px; font-weight: 700; fill: #888; letter-spacing: 1.5px; }
+      .highlight { font-size: 11px; font-weight: 700; fill: #1b5e20; }
+
+      rect.external { fill: #eceff1; stroke: #455a64; stroke-width: 1.5; }
+      rect.process  { fill: #e3f2fd; stroke: #1565c0; stroke-width: 1.5; }
+      rect.preproc  { fill: #f3e5f5; stroke: #6a1b9a; stroke-width: 1.5; }
+      rect.detected { fill: #c8e6c9; stroke: #1b5e20; stroke-width: 2.5; }
+      rect.output   { fill: #e8f5e9; stroke: #2e7d32; stroke-width: 1.5; }
+      rect.calib    { fill: #fce4ec; stroke: #ad1457; stroke-width: 1.5; stroke-dasharray: 5 3; }
+      rect.reject   { fill: #ffebee; stroke: #c62828; stroke-width: 1; stroke-dasharray: 3 3; }
+      rect.note     { fill: #fafafa; stroke: #aaa; stroke-width: 1; stroke-dasharray: 3 3; }
+      polygon.decision { fill: #fff8e1; stroke: #ef6c00; stroke-width: 1.5; }
+
+      path.flow { fill: none; stroke: #333; stroke-width: 2; }
+      path.reject-flow { fill: none; stroke: #c62828; stroke-width: 1.5; stroke-dasharray: 5 3; }
+      path.calib-flow { fill: none; stroke: #6a1b9a; stroke-width: 1.5; stroke-dasharray: 5 3; }
+    </style>
+  </defs>
+  <!-- ===== Title ===== -->
+  <text
+     x="559.41455"
+     y="36"
+     text-anchor="middle"
+     class="title"
+     id="text3"><tspan
+       style="text-align:center;text-anchor:middle"
+       id="tspan92">LDC1101 Crack-Detection Pipeline</tspan></text>
+  <text
+     x="559.66357"
+     y="58"
+     text-anchor="middle"
+     class="subtitle"
+     id="text4"><tspan
+       style="text-align:center;text-anchor:middle"
+       id="tspan93">From raw eddy-current samples to a confirmed crack and size estimate</tspan></text>
+  <!-- ===== Left-margin section labels ===== -->
+  <text
+     x="20"
+     y="110"
+     class="group-label"
+     id="text5"
+     style="font-size:16px">ACQUIRE</text>
+  <text
+     x="20"
+     y="235.10925"
+     class="group-label"
+     id="text6"
+     style="font-size:16px">PREPROCESS</text>
+  <text
+     x="20"
+     y="450"
+     class="group-label"
+     id="text7"
+     style="font-size:16px">SHAPE FIT</text>
+  <text
+     x="20"
+     y="740"
+     class="group-label"
+     id="text8"
+     style="font-size:16px">QUALIFY</text>
+  <text
+     x="20"
+     y="1010"
+     class="group-label"
+     id="text9"
+     style="font-size:16px">EMIT</text>
+  <!-- ===== 1. Hardware ===== -->
+  <rect
+     class="external"
+     x="380"
+     y="80"
+     width="360"
+     height="56"
+     rx="6"
+     id="rect9" />
+  <text
+     x="560"
+     y="104"
+     text-anchor="middle"
+     class="step"
+     id="text10">LDC1101 + LC eddy-current probe</text>
+  <text
+     x="560"
+     y="122"
+     text-anchor="middle"
+     class="sub"
+     id="text11">SPI register read → raw Rp_ohms, L_uH per tick</text>
+  <path
+     class="flow"
+     d="M 560 136 L 560 158"
+     marker-end="url(#arrow)"
+     id="path11" />
+  <!-- ===== 2. ldc1101_read ===== -->
+  <rect
+     class="process"
+     x="380"
+     y="160"
+     width="360"
+     height="56"
+     rx="6"
+     id="rect11" />
+  <text
+     x="560"
+     y="184"
+     text-anchor="middle"
+     class="step"
+     id="text12">ldc1101_read(C_sensor)</text>
+  <text
+     x="560"
+     y="202"
+     text-anchor="middle"
+     class="sub"
+     id="text13">called every reading_delay_ms from main.cpp::loop()</text>
+  <path
+     class="flow"
+     d="M 560 216 L 560 238"
+     marker-end="url(#arrow)"
+     id="path13" />
+  <!-- ===== Calibration sidebar ===== -->
+  <g
+     id="g92">
+    <rect
+       class="calib"
+       x="30"
+       y="252"
+       width="310"
+       height="136"
+       rx="6"
+       id="rect13" />
+    <text
+       x="185"
+       y="272"
+       text-anchor="middle"
+       class="step"
+       fill="#6a1b9a"
+       id="text14">CALIBRATION  (per substrate)</text>
+    <text
+       x="40"
+       y="293"
+       class="sub"
+       id="text15">Triggered by <tspan
+   class="code-purple"
+   id="tspan14">calibrate [N]</tspan> serial command.</text>
+    <text
+       x="40"
+       y="310"
+       class="sub"
+       id="text16">PCA on most recent N filtered (Rp, L) samples</text>
+    <text
+       x="40"
+       y="326"
+       class="sub"
+       id="text17">→ dominant trend angle θ of the substrate.</text>
+    <text
+       x="40"
+       y="348"
+       class="code-purple"
+       id="text18">setRotationAngle(−θ)</text>
+    <text
+       x="40"
+       y="363"
+       class="code-purple"
+       id="text19">setRotationCenter(mean_Rp, mean_L)</text>
+    <text
+       x="40"
+       y="378"
+       class="code-purple"
+       id="text20">setRotationEnabled(true)</text>
+  </g>
+  <path
+     class="calib-flow"
+     d="M 340 320 L 378 320"
+     marker-end="url(#arrow-purple)"
+     id="path20" />
+  <!-- ===== 3. appendMeasurement ===== -->
+  <rect
+     class="preproc"
+     x="380"
+     y="240"
+     width="360"
+     height="136"
+     rx="6"
+     id="rect20" />
+  <text
+     x="560"
+     y="263"
+     text-anchor="middle"
+     class="step"
+     id="text21">appendMeasurement(Rp, L)</text>
+  <text
+     x="560"
+     y="286"
+     text-anchor="middle"
+     class="sub"
+     id="text22">1.  Moving-average filter  (size = smoothing)</text>
+  <text
+     x="560"
+     y="304"
+     text-anchor="middle"
+     class="sub"
+     id="text23">2.  Subtract rotationCenter  (calibrated)</text>
+  <text
+     x="560"
+     y="322"
+     text-anchor="middle"
+     class="sub"
+     id="text24">3.  Rotate by rotationAngle  (calibrated)</text>
+  <text
+     x="560"
+     y="340"
+     text-anchor="middle"
+     class="sub"
+     id="text25">4.  Append rotated sample to rolling history</text>
+  <text
+     x="560"
+     y="362"
+     text-anchor="middle"
+     class="code"
+     id="text26">measurement_arrays.cpp</text>
+  <path
+     class="flow"
+     d="M 560 376 L 560 398"
+     marker-end="url(#arrow)"
+     id="path26" />
+  <!-- ===== 4. fitParabolaForWindow ===== -->
+  <rect
+     class="process"
+     x="380"
+     y="400"
+     width="360"
+     height="116"
+     rx="6"
+     id="rect26" />
+  <text
+     x="560"
+     y="423"
+     text-anchor="middle"
+     class="step"
+     id="text27">fitParabolaForWindow(crack_window)</text>
+  <text
+     x="560"
+     y="445"
+     text-anchor="middle"
+     class="sub"
+     id="text28">Least-squares fit  y = a·x² + b·x + c</text>
+  <text
+     x="560"
+     y="463"
+     text-anchor="middle"
+     class="sub"
+     id="text29">over the last  crack_window  rotated-L samples (x = index)</text>
+  <text
+     x="560"
+     y="481"
+     text-anchor="middle"
+     class="sub"
+     id="text30">→ fit_peak_height, fit_peak_x, fit_width, fit_r2</text>
+  <text
+     x="560"
+     y="503"
+     text-anchor="middle"
+     class="code"
+     id="text31">crack_detection.cpp::fitParabolaForWindow</text>
+  <!-- silent exit annotation -->
+  <rect
+     class="note"
+     x="799.93835"
+     y="403.12198"
+     width="236.12592"
+     height="81.756409"
+     rx="2.5527124"
+     id="rect31" />
+  <text
+     x="810"
+     y="424"
+     class="annotation"
+     id="text32">If sampleCount &lt; 3 or fit is singular (a ≥ 0,</text>
+  <text
+     x="810"
+     y="440"
+     class="annotation"
+     id="text33">vertex outside window, fitted peak ≤ 0): return</text>
+  <text
+     x="810"
+     y="456"
+     class="annotation"
+     id="text34">silently. No reject_reason emitted — the detector</text>
+  <text
+     x="810"
+     y="470"
+     class="annotation"
+     id="text35">hasn't &quot;started looking&quot; for a crack yet.</text>
+  <path
+     class="reject-flow"
+     d="M 740 444 L 798 444"
+     marker-end="url(#arrow-red)"
+     id="path35" />
+  <path
+     class="flow"
+     d="M 560 516 L 560 538"
+     marker-end="url(#arrow)"
+     id="path36" />
+  <!-- ===== 5. Shape diamond ===== -->
+  <polygon
+     class="decision"
+     points="560,538 740,602 560,666 380,602"
+     id="polygon36" />
+  <text
+     x="560"
+     y="590"
+     text-anchor="middle"
+     class="step"
+     id="text36">Shape qualifies?</text>
+  <text
+     x="560"
+     y="610"
+     text-anchor="middle"
+     class="sub"
+     id="text37">fit_r2 ≥ crack_r2     AND</text>
+  <text
+     x="560"
+     y="628"
+     text-anchor="middle"
+     class="sub"
+     id="text38">fit_peak ≥ crack_threshold</text>
+  <!-- no path -->
+  <text
+     x="747"
+     y="597"
+     class="yesno-no"
+     id="text39">no</text>
+  <path
+     class="reject-flow"
+     d="M 740 602 L 798 602"
+     marker-end="url(#arrow-red)"
+     id="path39" />
+  <rect
+     class="reject"
+     x="800"
+     y="565"
+     width="370"
+     height="78"
+     rx="6"
+     id="rect39" />
+  <text
+     x="810"
+     y="586"
+     class="reject-label"
+     id="text40">low_r2</text>
+  <text
+     x="870"
+     y="586"
+     class="reject-desc"
+     id="text41">— R² below crack_r2</text>
+  <text
+     x="810"
+     y="606"
+     class="reject-label"
+     id="text42">threshold</text>
+  <text
+     x="890"
+     y="606"
+     class="reject-desc"
+     id="text43">— fitted peak below crack_threshold</text>
+  <text
+     x="810"
+     y="630"
+     class="annotation"
+     id="text44">checked in this priority order; first failure wins</text>
+  <!-- yes -->
+  <text
+     x="568"
+     y="682"
+     class="yesno"
+     id="text45">yes</text>
+  <path
+     class="flow"
+     d="M 560 666 L 560 688"
+     marker-end="url(#arrow)"
+     id="path45" />
+  <!-- ===== 6. Phase diamond ===== -->
+  <polygon
+     class="decision"
+     points="560,688 740,752 560,816 380,752"
+     id="polygon45" />
+  <text
+     x="560"
+     y="738"
+     text-anchor="middle"
+     class="step"
+     id="text46">Phase qualifies?</text>
+  <text
+     x="560"
+     y="758"
+     text-anchor="middle"
+     class="sub"
+     id="text47">phase = atan2(ΔL, ΔRp) of the window</text>
+  <text
+     x="560"
+     y="776"
+     text-anchor="middle"
+     class="sub"
+     id="text48">phase (or phase+π) ∈ [crack_phase_min, crack_phase_max]</text>
+  <text
+     x="747"
+     y="747"
+     class="yesno-no"
+     id="text49">no</text>
+  <path
+     class="reject-flow"
+     d="M 740 752 L 798 752"
+     marker-end="url(#arrow-red)"
+     id="path49" />
+  <rect
+     class="reject"
+     x="800"
+     y="713"
+     width="370"
+     height="80"
+     rx="6"
+     id="rect49" />
+  <text
+     x="810"
+     y="733"
+     class="reject-label"
+     id="text50">phase_low</text>
+  <text
+     x="888"
+     y="733"
+     class="reject-desc"
+     id="text51">— closest rep below crack_phase_min</text>
+  <text
+     x="810"
+     y="753"
+     class="reject-label"
+     id="text52">phase_high</text>
+  <text
+     x="894"
+     y="753"
+     class="reject-desc"
+     id="text53">— closest rep above crack_phase_max</text>
+  <text
+     x="810"
+     y="773"
+     class="reject-label"
+     id="text54">no_phase</text>
+  <text
+     x="881"
+     y="773"
+     class="reject-desc"
+     id="text55">— window too short to compute atan2</text>
+  <text
+     x="568"
+     y="832"
+     class="yesno"
+     id="text56">yes</text>
+  <path
+     class="flow"
+     d="M 560 816 L 560 838"
+     marker-end="url(#arrow)"
+     id="path56" />
+  <!-- ===== 7. Temporal diamond ===== -->
+  <polygon
+     class="decision"
+     points="560,838 740,902 560,966 380,902"
+     id="polygon56" />
+  <text
+     x="560"
+     y="888"
+     text-anchor="middle"
+     class="step"
+     id="text57">First clean qualifying tick?</text>
+  <text
+     x="560"
+     y="908"
+     text-anchor="middle"
+     class="sub"
+     id="text58">gRefractoryRemaining == 0     AND</text>
+  <text
+     x="560"
+     y="926"
+     text-anchor="middle"
+     class="sub"
+     id="text59">previous tick was not qualified</text>
+  <text
+     x="747"
+     y="897"
+     class="yesno-no"
+     id="text60">no</text>
+  <path
+     class="reject-flow"
+     d="M 740 902 L 798 902"
+     marker-end="url(#arrow-red)"
+     id="path60" />
+  <rect
+     class="reject"
+     x="800"
+     y="863"
+     width="370"
+     height="80"
+     rx="6"
+     id="rect60" />
+  <text
+     x="810"
+     y="883"
+     class="reject-label"
+     id="text61">refractory</text>
+  <text
+     x="887"
+     y="883"
+     class="reject-desc"
+     id="text62">— still inside cooldown of prior detection</text>
+  <text
+     x="810"
+     y="903"
+     class="reject-label"
+     id="text63">held</text>
+  <text
+     x="852"
+     y="903"
+     class="reject-desc"
+     id="text64">— previous tick also qualified (dedup)</text>
+  <text
+     x="810"
+     y="925"
+     class="annotation"
+     id="text65">cooldown = max(fit_width, crack_window/4) samples</text>
+  <text
+     x="568"
+     y="982"
+     class="yesno"
+     id="text66">yes</text>
+  <path
+     class="flow"
+     d="M 560 966 L 560 988"
+     marker-end="url(#arrow)"
+     id="path66" />
+  <!-- ===== 8. Detected ===== -->
+  <rect
+     class="detected"
+     x="380"
+     y="988"
+     width="360"
+     height="80"
+     rx="6"
+     id="rect66" />
+  <text
+     x="560"
+     y="1012"
+     text-anchor="middle"
+     class="step-big"
+     id="text67">CRACK DETECTED</text>
+  <text
+     x="560"
+     y="1034"
+     text-anchor="middle"
+     class="sub"
+     id="text68">Set gRefractoryRemaining = max(fit_width, crack_window/4)</text>
+  <text
+     x="560"
+     y="1052"
+     text-anchor="middle"
+     class="sub"
+     id="text69">Mark previously-qualified for next tick</text>
+  <path
+     class="flow"
+     d="M 560 1068 L 560 1090"
+     marker-end="url(#arrow)"
+     id="path69" />
+  <!-- ===== 9. Telemetry ===== -->
+  <rect
+     class="output"
+     x="380"
+     y="1090"
+     width="360"
+     height="220"
+     rx="6"
+     id="rect69" />
+  <text
+     x="560"
+     y="1112"
+     text-anchor="middle"
+     class="step"
+     id="text70">telemetryEmitSample()</text>
+  <text
+     x="395"
+     y="1134"
+     class="group-label"
+     fill="#2e7d32"
+     id="text71">EVERY TICK  (Teleplot stream)</text>
+  <text
+     x="395"
+     y="1150"
+     class="code-green"
+     id="text72">&gt;Rp:&lt;rot/filt&gt; &gt;L:&lt;rot/filt&gt; &gt;t:&lt;ms&gt;|xy</text>
+  <text
+     x="395"
+     y="1175"
+     class="group-label"
+     fill="#2e7d32"
+     id="text73">ON DETECTION  (crack_output on)</text>
+  <text
+     x="395"
+     y="1191"
+     class="code-green"
+     id="text74">&gt;mag:&lt;fit_peak_height&gt;</text>
+  <text
+     x="395"
+     y="1207"
+     class="code-green"
+     id="text75">&gt;crack_size:&lt;fit_peak × crack_scale&gt;</text>
+  <text
+     x="615"
+     y="1207"
+     class="highlight"
+     id="text76">← SIZE ESTIMATE</text>
+  <text
+     x="395"
+     y="1223"
+     class="code-green"
+     id="text77">&gt;crack_x:&lt;ms at parabola vertex&gt;</text>
+  <text
+     x="395"
+     y="1239"
+     class="code-green"
+     id="text78">&gt;width:&lt;fit_width_samples&gt;</text>
+  <text
+     x="395"
+     y="1264"
+     class="group-label"
+     fill="#2e7d32"
+     id="text79">ON REJECTION  (crack_debug on)</text>
+  <text
+     x="395"
+     y="1280"
+     class="code-green"
+     id="text80">&gt;reason:&lt;low_r2 | threshold | phase_low | ...&gt;</text>
+  <text
+     x="395"
+     y="1296"
+     class="annotation"
+     id="text81">emitted as its own Teleplot line per rejected tick</text>
+  <!-- ===== Legend ===== -->
+  <text
+     x="30"
+     y="1355"
+     class="group-label"
+     id="text82">LEGEND</text>
+  <rect
+     class="external"
+     x="30"
+     y="1370"
+     width="22"
+     height="14"
+     id="rect82" />
+  <text
+     x="58"
+     y="1382"
+     class="sub"
+     id="text83">hardware / external</text>
+  <rect
+     class="process"
+     x="195"
+     y="1370"
+     width="22"
+     height="14"
+     id="rect83" />
+  <text
+     x="223"
+     y="1382"
+     class="sub"
+     id="text84">process step</text>
+  <rect
+     class="preproc"
+     x="330"
+     y="1370"
+     width="22"
+     height="14"
+     id="rect84" />
+  <text
+     x="358"
+     y="1382"
+     class="sub"
+     id="text85">preprocessing</text>
+  <polygon
+     class="decision"
+     points="475,1370 489,1377 475,1384 461,1377"
+     id="polygon85" />
+  <text
+     x="495"
+     y="1382"
+     class="sub"
+     id="text86">qualification check</text>
+  <rect
+     class="detected"
+     x="630"
+     y="1370"
+     width="22"
+     height="14"
+     id="rect86" />
+  <text
+     x="658"
+     y="1382"
+     class="sub"
+     id="text87">detection event</text>
+  <rect
+     class="output"
+     x="775"
+     y="1370"
+     width="22"
+     height="14"
+     id="rect87" />
+  <text
+     x="803"
+     y="1382"
+     class="sub"
+     id="text88">streaming output</text>
+  <rect
+     class="calib"
+     x="900"
+     y="1370"
+     width="22"
+     height="14"
+     id="rect88" />
+  <text
+     x="928"
+     y="1382"
+     class="sub"
+     id="text89">calibration side-effect</text>
+  <rect
+     class="reject"
+     x="1060"
+     y="1370"
+     width="22"
+     height="14"
+     id="rect89" />
+  <text
+     x="1088"
+     y="1382"
+     class="sub"
+     id="text90">rejection</text>
+  <!-- ===== Footnote ===== -->
+  <text
+     x="600"
+     y="1420"
+     text-anchor="middle"
+     class="annotation"
+     id="text91">
+    smoothing, crack_window, crack_threshold, crack_r2, crack_phase_min/max, crack_scale, delay are runtime-tunable via the serial CLI.
+  </text>
+  <text
+     x="600"
+     y="1438"
+     text-anchor="middle"
+     class="annotation"
+     id="text92">
+    Run  `status`  to see current values; run  `help`  to see matching command names.
+  </text>
+</svg>

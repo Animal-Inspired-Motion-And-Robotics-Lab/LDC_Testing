@@ -1,3 +1,16 @@
+// Firmware entry point. Orchestrates the per-tick pipeline:
+//
+//   ldc1101_read()      raw (Rp, L)
+//        ↓
+//   appendMeasurement() filter + rotate + store
+//        ↓
+//   crackDetectionCheck() shape + phase + dedup
+//        ↓
+//   telemetryEmitSample() emit Teleplot stream + optional crack/debug fields
+//
+// All runtime tunables live in serial_commands.cpp; we read snapshots of its
+// config + state each tick and pass them to the relevant module.
+
 #include <Arduino.h>
 #include "LED.h"
 #include "crack_detection.h"
@@ -8,56 +21,72 @@
 
 const char* fw_version = "0.2.5";
 
-//Default delay between readings (reconfigure over serial)
+// Boot defaults — all of these are reconfigurable at runtime via the CLI.
+// Listed in the order setup() consumes them.
+
+// Sample period for the main loop. The CLI's `delay <ms>` command overwrites
+// the live copy of this in serial_commands' state.
 static constexpr uint32_t kDefaultReadingDelayMs = 25;
 
-//DEFAULTS (reconfigure over serial)
-//For the stacked inductors, L = 11.8, 42.6, 90.0 uH
-static constexpr float kSensorL_H = 90.00e-6f; //uH = 1e-6H
-static constexpr float kSensorC_F = 220e-12f; //pF = 1e-12F
+// LC tank parameters used to drive RP_SET / TC1 / TC2 / DIG_CONF register
+// derivation inside the driver. Update both the value and the matching
+// stacked-inductor variant comment together (see CLAUDE.md).
+// For the stacked inductors, L = 11.8, 42.6, 90.0 uH.
+static constexpr float kSensorL_H = 90.00e-6f; // uH = 1e-6H
+static constexpr float kSensorC_F = 220e-12f;  // pF = 1e-12F
 
-//For the stacked inductors, modeled Q values are 23.6, 24.6, 25.6
-//with a 220pF capacitor
-static constexpr float kSensorQ = 20.0f; // Quality factor
+// For the stacked inductors, modeled Q values are 23.6, 24.6, 25.6 (220 pF).
+static constexpr float kSensorQ = 20.0f;
 
-//Switch configuration
+// External mux/switch driven by the driver before configuring. Unused on the
+// current wiring (-1 GPIO disables it).
 static constexpr int kSwitchEnable = 0;
 static constexpr int kSwitchGpio = -1;
 
-//LED Feedback
+// Onboard LED. The XIAO ESP32-S3 user LED is active-low.
 static constexpr int kLedPin = LED_BUILTIN;
 static constexpr bool kLedActiveHigh = false;
 
+// Timestamp of the last emitted tick — used by the loop to enforce
+// reading_delay_ms without blocking on delay().
 static uint32_t lastPrintMs = 0;
 
 void setup() {
-  Serial.begin(9600); //Serial connection
-  ledInit(kLedPin, kLedActiveHigh); //LED initialization
-  ledFlash(10, 150); // Quick boot indication
-  delay(5000); //Startup delay
-  Serial.print("LDC Testing, FW Version: ");Serial. println(fw_version);
+  // Note: USB-CDC on the XIAO ESP32-S3 ignores the firmware-side baud, so the
+  // number passed to Serial.begin() doesn't have to match platformio.ini's
+  // monitor speed. Keeping the call here mostly for portability.
+  Serial.begin(9600);
+  ledInit(kLedPin, kLedActiveHigh);
+  ledFlash(10, 150);   // Quick blink so the operator sees the chip restart.
+  delay(5000);         // Give the host time to re-enumerate the USB-CDC.
+  Serial.print("LDC Testing, FW Version: "); Serial.println(fw_version);
 
-  //Set up the serial command interface
+  // Seed the CLI with our boot defaults. After this, every CLI command
+  // mutates this in-place via the gConfig / gState globals in serial_commands.
   serial_command_config_t commandConfig = {kSensorL_H, kSensorC_F, kSensorQ,
       kSwitchEnable, kSwitchGpio};
   serial_command_state_t initialState = {LDC1101_MODE_RP_L, LDC_SPEED_BALANCED_1,
       true, false, true, false, kDefaultReadingDelayMs};
-  
-  //Initialize the LDC1101; serialCommandsInit() pushes the seeded
-  //sensor/mode/speed values to the chip via ldc1101_configure().
+
+  // ldc1101_init() prepares the SPI bus; serialCommandsInit() then pushes the
+  // seeded sensor/mode/speed values to the chip via ldc1101_configure() so
+  // we don't have to call configure() ourselves here.
   ldc1101_init();
   serialCommandsInit(&commandConfig, &initialState);
 
-  //Add smoothing for incoming data
-  setFilterWindow(25); //Set to 1 for raw data pass-through
+  // Moving-average smoothing window applied before rotation and storage.
+  // Set to 1 to disable filtering entirely.
+  setFilterWindow(25);
 
+  // Crack detector tuning. These mirror the `crack_*` serial commands and can
+  // be retuned live; the values here are just the boot defaults.
   crack_detection_config_t crackConfig = {
-      0.01f,  // threshold above rotated x-axis
-      110,   // window_samples (change as robot speed changes)
-      0.5f, // min_parabola_r2 (goodness of fit)
-      0.785f, // min_phase_angle_rad (pi/4)
-      3.14f,  // max_phase_angle_rad (pi)
-      220.0f   // length_estimate_scale (thou per uH)
+      0.01f,    // threshold       — min fitted peak height above rotated baseline
+      110,      // window_samples  — fit window (raise as robot speed drops)
+      0.5f,     // min_parabola_r2 — fit must explain at least this much variance
+      0.785f,   // min_phase_angle_rad  (π/4)
+      3.14f,    // max_phase_angle_rad  (π)
+      220.0f    // length_estimate_scale — thou per µH (peak × scale = crack_size)
   };
   crackDetectionInit(&crackConfig);
 
@@ -65,32 +94,39 @@ void setup() {
 }
 
 void loop() {
-
-  serialCommandsPoll(); //Check for incoming serial data
+  // Drain any queued CLI input first so user changes apply *this* tick.
+  serialCommandsPoll();
   serial_command_state_t state = serialCommandsGetState();
   serial_command_config_t config = serialCommandsGetConfig();
-  if (!state.streaming_enabled) {delay(2); return;} //Skip if streaming is disabled
 
-  uint32_t now = millis(); //Timestamp
+  // `stream off` halts emission without disturbing CLI responsiveness. A tiny
+  // delay yields to other tasks instead of hot-spinning.
+  if (!state.streaming_enabled) {delay(2); return;}
 
-  //If enough time has passed, print the latest filtered measurements
+  // Non-blocking pacing: only do a real read+emit when enough wall time has
+  // elapsed since the last one. millis() wraparound is fine because the
+  // subtraction is unsigned.
+  uint32_t now = millis();
   if (now - lastPrintMs >= state.reading_delay_ms) {
     lastPrintMs = now;
-      ldc1101_measurement_t m = ldc1101_read(config.sensor_c_f);
-      appendMeasurement(m.Rp_ohms, m.L_uH); //Add the new measurements to their arrays
 
+    // 1. Read raw (Rp, L) from the LDC1101.
+    ldc1101_measurement_t m = ldc1101_read(config.sensor_c_f);
+
+    // 2. Push through smoothing + rotation, store in history.
+    appendMeasurement(m.Rp_ohms, m.L_uH);
+
+    // 3. Run the two-stage detector on the newly extended window.
     crack_detection_result_t crackResult = {};
     bool crackDetected = crackDetectionCheck(&crackResult);
 
-    //Check for cracks only if calibrated and rotated
-    if (state.rotated) {
-      if (crackDetected) {
-        ledFlash(3, 20);
-      }
+    // 4. Only flash for a crack once the user has calibrated the rotation —
+    //    pre-calibration detections aren't trustworthy.
+    if (state.rotated && crackDetected) {
+      ledFlash(3, 20);
     }
 
+    // 5. Emit the per-tick Teleplot line (+ optional crack/debug fields).
     telemetryEmitSample(now, &state, crackDetected, &crackResult);
-    
   }
-
 }

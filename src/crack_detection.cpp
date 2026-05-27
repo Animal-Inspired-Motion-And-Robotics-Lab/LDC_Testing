@@ -1,3 +1,19 @@
+// Two-stage crack detector.
+//
+// Stage 1 (shape): least-squares fit a parabola to the most recent
+//   `crack_window` rotated-L samples. Accept the window if the fit explains the
+//   data (R² >= crack_r2) and the fitted peak is tall enough
+//   (peak >= crack_threshold).
+//
+// Stage 2 (phase): treat the window's (ΔRp, ΔL) as a direction in the rotated
+//   plane and check that its angle lies inside the configured cone — or its
+//   180° opposite, since either direction of motion across a crack qualifies.
+//
+// On a confirmed detection the detector arms a refractory cooldown so that the
+// same physical crack does not emit multiple times as its tail slides through
+// the window; `gPreviousQualified` adds a second dedup layer (see notes inside
+// crackDetectionCheck).
+
 #include "crack_detection.h"
 
 #include <math.h>
@@ -8,15 +24,33 @@ namespace {
 
 static constexpr float kPi = 3.14159265358979323846f;
 static constexpr float kTwoPi = 2.0f * kPi;
+// Numerical floor used for "matrix singular" / "peak essentially zero" tests
+// inside the parabola fit. Anything below this is treated as not-a-real-value.
 static constexpr float kPeakEpsilon = 1.0e-6f;
 static constexpr float kDefaultMinParabolaR2 = 0.90f;
 
+// Live tuning state. Populated by crackDetectionInit() and the
+// crackDetectionSet*() commands; read on every tick by crackDetectionCheck().
+// Defaults here are only used if init() is somehow skipped — main.cpp passes
+// the real config at boot.
 static crack_detection_config_t gConfig = {0.1f, 100, kDefaultMinParabolaR2,
                                            (kPi * 0.25f), kPi, 1.0f};
 static bool gInitialized = false;
+
+// Cross-tick state for the two dedup mechanisms:
+//   - gPreviousQualified: true if the prior tick passed shape+phase. While
+//     this is true, even an otherwise-good window will not re-fire (prevents a
+//     single crack from emitting once per tick as it slides through).
+//   - gRefractoryRemaining: cooldown counter loaded after a detection. Counts
+//     down by 1 every tick regardless of qualification, so it's a wall-clock
+//     timer in units of sample ticks.
 static bool gPreviousQualified = false;
 static size_t gRefractoryRemaining = 0;
 
+// Decide how long the cooldown after a detection should be, in sample ticks.
+// We want at least the fit's reported width (so the same crack's tail can roll
+// out of the window) but never shorter than a quarter of the configured window
+// (so a wide window doesn't fire on every quarter-window slide).
 size_t computeRefractorySamples(float fitWidthSamples) {
   size_t widthBased = 1;
   if (isfinite(fitWidthSamples) && fitWidthSamples > 0.0f) {
@@ -34,6 +68,11 @@ size_t computeRefractorySamples(float fitWidthSamples) {
   return (widthBased > windowBased) ? widthBased : windowBased;
 }
 
+// Direction of (ΔRp, ΔL) across the window in the rotated plane, in radians.
+// Computed as the angle of the (newest − oldest) chord — cheap and robust to
+// noise compared with per-sample derivatives. Used by the phase check to
+// distinguish crack-like motion (perpendicular to the substrate trend) from
+// drift along the substrate trend.
 bool getPhaseAngleForWindow(size_t sampleCount, float* phaseAngleRad) {
   if (phaseAngleRad == nullptr) {
     return false;
@@ -43,7 +82,6 @@ bool getPhaseAngleForWindow(size_t sampleCount, float* phaseAngleRad) {
     return false;
   }
 
-  // Use the same rolling window for phase qualification: oldest->newest delta.
   float newestRp = 0.0f;
   float newestL = 0.0f;
   float oldestRp = 0.0f;
@@ -59,6 +97,7 @@ bool getPhaseAngleForWindow(size_t sampleCount, float* phaseAngleRad) {
   return true;
 }
 
+// Wrap any radian value into the canonical (-π, π] interval.
 float normalizeAngleRad(float angleRad) {
   while (angleRad <= -kPi) {
     angleRad += kTwoPi;
@@ -69,6 +108,8 @@ float normalizeAngleRad(float angleRad) {
   return angleRad;
 }
 
+// Inclusive range test that handles a wrapped interval (min > max means the
+// interval crosses the ±π discontinuity, e.g. [3.0, -3.0]).
 bool angleInRange(float angleRad, float minAngleRad, float maxAngleRad) {
   if (minAngleRad <= maxAngleRad) {
     return (angleRad >= minAngleRad) && (angleRad <= maxAngleRad);
@@ -76,6 +117,23 @@ bool angleInRange(float angleRad, float minAngleRad, float maxAngleRad) {
   return (angleRad >= minAngleRad) || (angleRad <= maxAngleRad);
 }
 
+// Closed-form least-squares fit of y = a·x² + b·x + c to the most recent
+// `sampleCount` rotated-L samples, with x = 0..sampleCount-1 (oldest to
+// newest). y is taken relative to rotationCenterL so a no-crack baseline sits
+// near zero.
+//
+// Outputs are derived analytically from a/b/c:
+//   peakHeight      = c − b² / (4a)            (the vertex value)
+//   peakXSamples    = −b / (2a)                (vertex x, samples-from-oldest)
+//   halfPeakHeight  = peakHeight / 2           (kept for the debug stream)
+//   widthSamples    = 2·√(−peakHeight / (2a))  (full width at zero crossing
+//                                               relative to baseline)
+//   fitR2           = standard coefficient of determination
+//
+// Returns false (without setting outputs) if the matrix is singular, the
+// parabola opens upward (a ≥ 0), the vertex is outside the window, or the
+// fitted peak/width is non-positive. Callers treat false as "no fit attempted"
+// and emit no rejection reason.
 bool fitParabolaForWindow(size_t sampleCount,
                           float* peakHeight,
                           float* peakXSamples,
@@ -92,10 +150,14 @@ bool fitParabolaForWindow(size_t sampleCount,
     return false;
   }
 
+  // y is measured relative to the calibrated rotation center so the fit
+  // describes a peak above the substrate baseline rather than above zero.
   float rotationCenterRp = 0.0f;
   float rotationCenterL = 0.0f;
   getRotationCenter(&rotationCenterRp, &rotationCenterL);
 
+  // Accumulate the moments needed for the normal equations. One pass over the
+  // window suffices for all of Σx, Σx², Σx³, Σx⁴, Σy, Σxy, Σx²y.
   float sumX = 0.0f;
   float sumX2 = 0.0f;
   float sumX3 = 0.0f;
@@ -127,7 +189,9 @@ bool fitParabolaForWindow(size_t sampleCount,
 
   const float n = static_cast<float>(sampleCount);
 
-  // Solve normal equations for y = a*x^2 + b*x + c.
+  // Normal equations  M · [a;b;c] = v  with
+  //   M = [Σx⁴ Σx³ Σx²;  Σx³ Σx² Σx;  Σx² Σx n]
+  //   v = [Σx²y;  Σxy;  Σy]
   float m00 = sumX4;
   float m01 = sumX3;
   float m02 = sumX2;
@@ -142,7 +206,8 @@ bool fitParabolaForWindow(size_t sampleCount,
   float v1 = sumXY;
   float v2 = sumY;
 
-  // Gaussian elimination (3x3).
+  // Forward-eliminate to upper-triangular, then back-substitute. Bail out at
+  // any vanishing pivot — that's a degenerate window we can't fit.
   if (fabsf(m00) < kPeakEpsilon) {
     return false;
   }
@@ -169,24 +234,33 @@ bool fitParabolaForWindow(size_t sampleCount,
     return false;
   }
 
+  // Back-substitute for the three coefficients of y = a·x² + b·x + c.
   const float c = v2 / m22;
   const float b = (v1 - m12 * c) / m11;
   const float a = (v0 - m01 * b - m02 * c) / m00;
 
+  // For a crack we expect a downward-opening parabola (a < 0). Reject
+  // upward-opening fits and any NaN/Inf — those don't describe a peak.
   if (!(a < -kPeakEpsilon) || !isfinite(a) || !isfinite(b) || !isfinite(c)) {
     return false;
   }
 
+  // Vertex must live inside the window — extrapolated peaks aren't credible.
   const float xVertex = -b / (2.0f * a);
   if (!(xVertex >= 0.0f) || !(xVertex <= (n - 1.0f)) || !isfinite(xVertex)) {
     return false;
   }
 
+  // Peak height = c − b²/(4a). Above the baseline = positive (we subtracted
+  // rotationCenterL during accumulation).
   const float fittedPeak = c - ((b * b) / (4.0f * a));
   if (!(fittedPeak > 0.0f) || !isfinite(fittedPeak)) {
     return false;
   }
 
+  // Distance from the vertex to where the parabola crosses y = 0:
+  //   y(xVertex ± Δ) = 0  ⇒  Δ² = −fittedPeak / (2a)
+  // Full width is 2·Δ in samples.
   const float halfHeight = 0.5f * fittedPeak;
   const float halfWidthSquared = -fittedPeak / (2.0f * a);
   if (!(halfWidthSquared > 0.0f) || !isfinite(halfWidthSquared)) {
@@ -198,6 +272,7 @@ bool fitParabolaForWindow(size_t sampleCount,
     return false;
   }
 
+  // Compute R² = 1 − SSE/SST in a second pass over the same window.
   float sst = 0.0f;
   float sse = 0.0f;
   const float meanY = sumY / n;
@@ -218,6 +293,8 @@ bool fitParabolaForWindow(size_t sampleCount,
     sst += dy * dy;
   }
 
+  // If the data has no variance at all, R² is undefined by the usual formula.
+  // Treat zero residuals as a perfect fit; anything else as a worst-case zero.
   float r2 = 0.0f;
   if (sst <= kPeakEpsilon) {
     r2 = (sse <= kPeakEpsilon) ? 1.0f : 0.0f;
@@ -238,6 +315,10 @@ bool fitParabolaForWindow(size_t sampleCount,
 
 }  // namespace
 
+// Adopt the caller's tuning, clamp each field to its valid range, and reset
+// the per-tick state machine. Safe to call repeatedly. Passing nullptr leaves
+// gConfig untouched but still re-clamps and resets — handy as a "lazy init"
+// fallback when a setter is called before main.cpp's explicit init.
 void crackDetectionInit(const crack_detection_config_t* config) {
   if (config != nullptr) {
     gConfig = *config;
@@ -258,6 +339,7 @@ void crackDetectionInit(const crack_detection_config_t* config) {
     gConfig.min_parabola_r2 = 1.0f;
   }
 
+  // Normalize a swapped phase interval — users sometimes type max first.
   if (gConfig.min_phase_angle_rad > gConfig.max_phase_angle_rad) {
     const float tmp = gConfig.min_phase_angle_rad;
     gConfig.min_phase_angle_rad = gConfig.max_phase_angle_rad;
@@ -273,15 +355,24 @@ void crackDetectionInit(const crack_detection_config_t* config) {
   gInitialized = true;
 }
 
+// Per-tick entry point. Run the two-stage check on whatever rolling window is
+// currently in measurement_arrays and decide if this tick should emit a crack.
+// Returns true exactly when a brand-new detection fires; false otherwise.
+// When `result` is provided it always receives the fit values (or zeros) and,
+// on a rejection, the reason that disqualified the window.
 bool crackDetectionCheck(crack_detection_result_t* result) {
   if (!gInitialized) {
     crackDetectionInit(nullptr);
   }
 
+  // Decrement the refractory clock unconditionally — it's wall time, not
+  // "ticks where we qualified."
   if (gRefractoryRemaining > 0) {
     --gRefractoryRemaining;
   }
 
+  // Zero the result up front so callers see a well-defined "no detection"
+  // state even if we bail out at the parabola fit.
   if (result != nullptr) {
     result->detected = false;
     result->fit_peak_height = 0.0f;
@@ -292,6 +383,7 @@ bool crackDetectionCheck(crack_detection_result_t* result) {
     result->reject_reason = nullptr;
   }
 
+  // --- Stage 0: try to fit a parabola at all. ---
   float fitPeakHeight = 0.0f;
   float fitPeakXSamples = 0.0f;
   float fitHalfPeakHeight = 0.0f;
@@ -301,11 +393,16 @@ bool crackDetectionCheck(crack_detection_result_t* result) {
                             &fitPeakHeight, &fitPeakXSamples,
                             &fitHalfPeakHeight,
                             &fitWidthSamples, &fitR2)) {
-    // No fit at all — leave reject_reason nullptr (too noisy to report).
+    // Not even a usable fit — too few samples, singular matrix, upward
+    // parabola, etc. We treat this as "haven't started looking" and emit no
+    // reject_reason; reporting one every tick before warmup completes would
+    // drown the debug stream.
     gPreviousQualified = false;
     return false;
   }
 
+  // Fit succeeded — publish the numbers regardless of qualification so the
+  // crack_debug stream can show what the fit looked like even on rejection.
   if (result != nullptr) {
     result->fit_peak_height = fitPeakHeight;
     result->fit_peak_x_samples = fitPeakXSamples;
@@ -314,6 +411,7 @@ bool crackDetectionCheck(crack_detection_result_t* result) {
     result->fit_r2 = fitR2;
   }
 
+  // --- Stage 1: shape check (R² then threshold, first failure wins). ---
   if (fitR2 < gConfig.min_parabola_r2) {
     if (result != nullptr) result->reject_reason = "low_r2";
     gPreviousQualified = false;
@@ -325,6 +423,7 @@ bool crackDetectionCheck(crack_detection_result_t* result) {
     return false;
   }
 
+  // --- Stage 2: phase check. ---
   float phaseAngleRad = NAN;
   if (!getPhaseAngleForWindow(gConfig.window_samples, &phaseAngleRad)) {
     if (result != nullptr) result->reject_reason = "no_phase";
@@ -332,14 +431,16 @@ bool crackDetectionCheck(crack_detection_result_t* result) {
     return false;
   }
 
+  // Accept either the chord's angle or its 180° opposite — a crack signature
+  // looks the same regardless of which way the probe crosses it.
   const float normalizedPhase = normalizeAngleRad(phaseAngleRad);
   const float oppositePhase = normalizeAngleRad(normalizedPhase + kPi);
   const bool phaseQualified =
       angleInRange(normalizedPhase, gConfig.min_phase_angle_rad, gConfig.max_phase_angle_rad) ||
       angleInRange(oppositePhase, gConfig.min_phase_angle_rad, gConfig.max_phase_angle_rad);
   if (!phaseQualified) {
-    // Both phase representatives missed the cone. Pick the one closer to the
-    // cone and report which boundary it overshot.
+    // Both representatives missed. Classify by the one closer to the cone so
+    // the >reason output tells the tuner which boundary to relax.
     const float minAngle = gConfig.min_phase_angle_rad;
     const float maxAngle = gConfig.max_phase_angle_rad;
     auto missInfo = [minAngle, maxAngle](float angle, float* distance, bool* low) {
@@ -356,16 +457,25 @@ bool crackDetectionCheck(crack_detection_result_t* result) {
     return false;
   }
 
+  // --- Stage 3: dedup. ---
+  // The window has passed both checks. Two reasons we still might not fire:
+  //   - We're inside the cooldown that was loaded by an earlier detection
+  //     (same physical crack still in the window, or back-to-back cracks).
+  //   - The previous tick was also qualified, so this is the same crack
+  //     emitting in two adjacent ticks — only the first should fire.
   if (gRefractoryRemaining > 0) {
     if (result != nullptr) result->reject_reason = "refractory";
     gPreviousQualified = true;
     return false;
   }
-
   if (gPreviousQualified) {
     if (result != nullptr) result->reject_reason = "held";
     return false;
   }
+
+  // --- Detection. ---
+  // Latch the dedup flags and arm a cooldown sized to the fit so the next
+  // detection has to be a clearly separate event.
   gPreviousQualified = true;
   gRefractoryRemaining = computeRefractorySamples(fitWidthSamples);
 
@@ -380,6 +490,13 @@ bool crackDetectionCheck(crack_detection_result_t* result) {
 
   return true;
 }
+
+// -----------------------------------------------------------------------------
+// Runtime setters/getters for each tuning knob. Each one lazy-inits with
+// nullptr (which preserves whatever was last configured but re-clamps) so
+// callers can use them before main.cpp's explicit init has run. The same
+// clamping rules from crackDetectionInit() are applied on every write.
+// -----------------------------------------------------------------------------
 
 void crackDetectionSetWindowSamples(size_t window_samples) {
   if (!gInitialized) {

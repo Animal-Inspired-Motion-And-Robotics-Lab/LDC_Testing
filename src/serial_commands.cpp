@@ -1,3 +1,21 @@
+// Line-oriented serial CLI for runtime configuration.
+//
+// Architecture:
+//   - serialCommandsInit() seeds the live config + state and pushes the
+//     starting sensor parameters to the chip via configureSensor().
+//   - serialCommandsPoll() is called every loop() tick and assembles
+//     characters into lines; on '\n', the line is dispatched to processCommand.
+//   - processCommand() is a flat strcmp() dispatch. Each command block is
+//     small enough that a giant switch isn't worth the indirection.
+//
+// Conventions (kept in sync with printStatus() and printHelp()):
+//   - "set" forms write a new value, then echo the post-clamp value.
+//   - "show" forms (no args) just echo the current value.
+//   - On/off toggles return "OK <name> on|off"; numeric set+show return "<name>=<val>".
+//   - Every register-affecting setter calls configureSensor() so the chip
+//     never drifts out of sync with gConfig/gState. This is the convention
+//     CLAUDE.md refers to.
+
 #include "serial_commands.h"
 
 #include <Arduino.h>
@@ -11,6 +29,8 @@
 
 namespace {
 
+// Live config + state. printStatus() reads these; the per-command set blocks
+// mutate them; main.cpp reads via serialCommandsGetConfig/State each tick.
 static serial_command_config_t gConfig;
 static serial_command_state_t gState;
 static bool gInitialized = false;
@@ -18,8 +38,11 @@ static bool gInitialized = false;
 static constexpr size_t kCommandBufferLen = 96;
 static constexpr long kMaxCalibrationSamples = 50000;
 static constexpr long kMaxReadingDelayMs = 60000;
+// Commands accept µH / pF for convenience; sensor config is stored in SI
+// (Henries / Farads). These factors are the conversion in both directions.
 static constexpr float kMicroToBase = 1.0e-6f;
 static constexpr float kPicoToBase = 1.0e-12f;
+// Line assembly buffer for serialCommandsPoll().
 static char gCommandBuffer[kCommandBufferLen];
 static size_t gCommandLength = 0;
 
@@ -38,6 +61,10 @@ const char* speedToString(ldc_speed_mode_t speed) {
   }
 }
 
+// Re-push the current sensor parameters + mode/speed to the LDC1101.
+// Called from serialCommandsInit() and from any command block that changes a
+// register-affecting field. Cheap (just a few SPI writes) so we don't bother
+// diffing.
 void configureSensor() {
   ldc1101_configure(gConfig.sensor_l_h, gConfig.sensor_c_f, gConfig.sensor_q,
       gState.mode, gState.speed_mode,
@@ -127,18 +154,32 @@ void printStatus() {
   Serial.println(gState.crack_debug_output ? "on" : "off");
 }
 
+// Dispatch one user-typed line. Format: <command> [arg ...]. Whitespace-only
+// lines are ignored. Each command block uses the strtok cursor left by the
+// initial split. Each block validates its own arguments and prints either an
+// "ERR ..." line on bad input or an echo of the post-clamp value on success.
+//
+// Numeric commands generally accept "no args = show current; one arg = set
+// then show." Boolean commands always require "on|off".
 void processCommand(char* line) {
+  // Strip leading whitespace; treat empty lines as no-ops.
   while (*line == ' ' || *line == '\t') {
     ++line;
   }
   if (*line == '\0') {return;}
 
+  // First token is the command name; rest are consumed inside the matching block.
   char* token = strtok(line, " \t");
   if (token == nullptr) {return;}
 
   if (strcmp(token, "help") == 0) {printHelp(); return;}
 
   if (strcmp(token, "status") == 0) {printStatus(); return;}
+
+  // --- Sensor parameters (l_h, c_f, q) -------------------------------------
+  // Stored in SI internally; the CLI takes / shows µH and pF respectively. Any
+  // change is pushed to the chip immediately via configureSensor() because
+  // these values are inputs to the RP_SET / TC1 / TC2 / DIG_CONF formulas.
 
   if (strcmp(token, "l_h") == 0 || strcmp(token, "lh") == 0) {
     char* value = strtok(nullptr, " \t");
@@ -209,6 +250,11 @@ void processCommand(char* line) {
     return;
   }
 
+  // --- Signal processing ---------------------------------------------------
+  // angle/rotated/calibrate share the rotation state owned by measurement_arrays.
+  // `angle` sets just the rotation angle (leaving center alone). Use `calibrate`
+  // to recompute both from current data when you change substrate.
+
   if (strcmp(token, "angle") == 0) {
     char* value = strtok(nullptr, " \t");
     if (value != nullptr) {
@@ -230,6 +276,9 @@ void processCommand(char* line) {
     Serial.println(getRotationAngle(), 6);
     return;
   }
+
+  // --- Reading mode (stream/delay) ----------------------------------------
+  // Don't push to the chip — they only affect the main loop's emit timing.
 
   if (strcmp(token, "stream") == 0) {
     char* value = strtok(nullptr, " \t");
@@ -289,6 +338,10 @@ void processCommand(char* line) {
     Serial.println((unsigned int)getFilterWindow());
     return;
   }
+
+  // --- Crack detection tuning ---------------------------------------------
+  // All of these write through to crack_detection; the value is re-clamped on
+  // the way in, and the echo prints the post-clamp value.
 
   if (strcmp(token, "crack_window") == 0) {
     char* value = strtok(nullptr, " \t");
@@ -432,6 +485,10 @@ void processCommand(char* line) {
     return;
   }
 
+  // --- Mode/speed selection (register-affecting) --------------------------
+  // Both call configureSensor() because they change DIG_CONF / TC* register
+  // values that the driver recomputes from the current config.
+
   if (strcmp(token, "mode") == 0) {
     char* value = strtok(nullptr, " \t");
     if (value == nullptr) {
@@ -484,6 +541,10 @@ void processCommand(char* line) {
     return;
   }
 
+  // --- Per-substrate calibration ------------------------------------------
+  // Runs PCA on the most recent N filtered samples and installs the resulting
+  // rotation. LED flashes during the run so the operator can confirm timing.
+
   if (strcmp(token, "calibrate") == 0) {
     char* value = strtok(nullptr, " \t");
     size_t sampleCount = 40;
@@ -504,9 +565,11 @@ void processCommand(char* line) {
     return;
   }
 
-    if (strcmp(token, "rotate") == 0 ||
-        strcmp(token, "rotated") == 0 ||
-        strcmp(token, "rotation") == 0) {
+  // `rotate` and `rotation` are accepted as aliases for `rotated` so the
+  // command is forgiving of how the user remembers it.
+  if (strcmp(token, "rotate") == 0 ||
+      strcmp(token, "rotated") == 0 ||
+      strcmp(token, "rotation") == 0) {
     char* value = strtok(nullptr, " \t");
     if (value == nullptr) {
       Serial.println("ERR usage: rotated on|off");
@@ -534,6 +597,9 @@ void processCommand(char* line) {
 
 }  // namespace
 
+// Seed the live config + state, push them to the chip, and print the help
+// banner. main.cpp::setup() calls this once at boot with its `kSensor*`
+// defaults; subsequent CLI commands mutate gConfig/gState in place.
 void serialCommandsInit(const serial_command_config_t* config,
                         const serial_command_state_t* initial_state) {
   if (config == nullptr || initial_state == nullptr) {
@@ -546,11 +612,18 @@ void serialCommandsInit(const serial_command_config_t* config,
   gCommandLength = 0;
   gInitialized = true;
 
+  // Push the seeded sensor parameters to the LDC1101 here so main.cpp doesn't
+  // have to call ldc1101_configure() separately.
   configureSensor();
 
   printHelp();
 }
 
+// Non-blocking line assembler — call once per loop() tick. Drains whatever
+// the USB-CDC has buffered, ignores '\r', dispatches on '\n', and silently
+// drops any bytes past the buffer length (typing longer than 95 chars is on
+// the user). Bytes after a buffer overflow keep the partial line until '\n',
+// which is then dispatched as the truncated line.
 void serialCommandsPoll(void) {
   if (!gInitialized) {
     return;
@@ -575,6 +648,8 @@ void serialCommandsPoll(void) {
   }
 }
 
+// Snapshots of the live state for main.cpp. Returned by value (small structs)
+// so callers can't accidentally mutate our globals through the result.
 serial_command_state_t serialCommandsGetState(void) {
   return gState;
 }

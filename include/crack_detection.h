@@ -1,3 +1,6 @@
+// Two-stage crack detector built on top of the rotated measurement stream.
+// See crack_detection.cpp for the full algorithm description and pipeline.
+
 #ifndef CRACK_DETECTION_H
 #define CRACK_DETECTION_H
 
@@ -5,22 +8,27 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// Tuning knobs. All fields are runtime-mutable via the serial CLI.
 typedef struct {
-  float threshold;
-  size_t window_samples;
-  float min_parabola_r2;
-  float min_phase_angle_rad;
-  float max_phase_angle_rad;
-  float length_estimate_scale;
+  float threshold;             // Minimum fitted parabola peak height (above baseline).
+  size_t window_samples;       // Rolling window length used for fit + phase.
+  float min_parabola_r2;       // Minimum R² of the parabola fit (0..1).
+  float min_phase_angle_rad;   // Inclusive lower bound of the accept cone (rad).
+  float max_phase_angle_rad;   // Inclusive upper bound of the accept cone (rad).
+  float length_estimate_scale; // Scales fit peak height into a length estimate.
 } crack_detection_config_t;
 
+// Per-tick result published by crackDetectionCheck(). Fit values are populated
+// whenever a parabola fit was possible — even on rejection — so the debug
+// stream can show what the fit looked like. On detection, reject_reason is
+// nullptr; on rejection it points to a static reason string.
 typedef struct {
   bool detected;
-  float fit_peak_height;
-  float fit_peak_x_samples;
-  float fit_half_peak_height;
-  float fit_width_samples;
-  float fit_r2;
+  float fit_peak_height;       // Vertex height above the rotated baseline.
+  float fit_peak_x_samples;    // Vertex location, 0..window_samples-1 (oldest→newest).
+  float fit_half_peak_height;  // = fit_peak_height / 2 (kept for debug).
+  float fit_width_samples;     // Full width where the parabola crosses zero.
+  float fit_r2;                // Coefficient of determination of the fit.
   // When `detected` is false and the parabola fit succeeded, this points to a
   // static string explaining which check rejected the window (e.g. "low_r2",
   // "threshold", "phase_low", "phase_high", "no_phase", "refractory", "held").
@@ -28,11 +36,16 @@ typedef struct {
   const char* reject_reason;
 } crack_detection_result_t;
 
+// Adopt `config` (or, if null, just re-clamp the current values) and reset the
+// dedup / refractory state machine.
 void crackDetectionInit(const crack_detection_config_t* config);
 
-// Returns true when a threshold-qualified window completes and emits a crack size.
+// Per-tick check. Returns true exactly when a new detection fires (not on a
+// "held" continuation of the same event). Always populates `result` if given.
 bool crackDetectionCheck(crack_detection_result_t* result);
 
+// Runtime tuning. Each set() clamps to the valid range; each get() returns the
+// post-clamp value currently in use. All paired with a `crack_*` serial command.
 void crackDetectionSetWindowSamples(size_t window_samples);
 size_t crackDetectionGetWindowSamples(void);
 
@@ -42,6 +55,8 @@ float crackDetectionGetThreshold(void);
 void crackDetectionSetMinParabolaR2(float min_parabola_r2);
 float crackDetectionGetMinParabolaR2(void);
 
+// Sets the accept cone. Values are swapped if min > max so callers don't have
+// to care about the order they pass them in.
 void crackDetectionSetPhaseAngleRange(float min_phase_angle_rad, float max_phase_angle_rad);
 float crackDetectionGetMinPhaseAngleRad(void);
 float crackDetectionGetMaxPhaseAngleRad(void);

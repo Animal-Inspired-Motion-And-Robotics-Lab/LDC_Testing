@@ -1,7 +1,16 @@
-// Streaming serial output for the measurement pipeline. See telemetry.h
-// for the wire format. This module is intentionally the only place that
-// writes the per-tick ">Rp:.../>L:..." line, so the format can be changed
-// in exactly one place.
+// Streaming serial output for the measurement pipeline.
+//
+// This module is intentionally the only place that writes the per-tick
+// ">Rp:.../>L:..." line, so the wire format lives in exactly one file. The
+// output is Teleplot-flavored: each ">name:value" is one Teleplot datapoint,
+// and the "|xy" suffix tells Teleplot to render Rp vs L as an X-Y plot.
+//
+// Three categories of output per tick:
+//   1. Always: the >Rp / >L / >t stream line (one per tick).
+//   2. On a confirmed detection with crack_output on: >mag/>crack_x/
+//      >crack_size/>width fields appended to the same line.
+//   3. On a rejection with crack_debug on: a separate >reason line, plus a
+//      plain-text key=value debug line with the live tuning knobs.
 
 #include "telemetry.h"
 
@@ -10,6 +19,11 @@
 #include "ldc1101.h"
 #include "measurement_arrays.h"
 
+// Build and emit one tick's serial output.
+//   now_ms          - timestamp from main.cpp's millis()
+//   state           - current CLI state (controls which extras are emitted)
+//   crack_detected  - return value of crackDetectionCheck()
+//   crack           - result struct (or nullptr) from crackDetectionCheck()
 void telemetryEmitSample(uint32_t now_ms,
                          const serial_command_state_t* state,
                          bool crack_detected,
@@ -27,6 +41,10 @@ void telemetryEmitSample(uint32_t now_ms,
   Serial.print(">L:");  Serial.print(lOut, 6);
 
   if (state->crack_output && crack_detected && crack != nullptr) {
+    // Translate the fit's vertex position (in samples, 0 = oldest in window)
+    // into an absolute timestamp by stepping back from `now_ms`:
+    //   crackXMs = now - (samples_after_vertex * sample_period)
+    // and clamp to 0 in case the math underflows on a tiny millis() counter.
     const float windowSamples = static_cast<float>(crackDetectionGetWindowSamples());
     const float sampleDtMs = static_cast<float>(state->reading_delay_ms);
     const float scaledCrackSize =
@@ -37,10 +55,10 @@ void telemetryEmitSample(uint32_t now_ms,
       crackXMs = 0.0f;
     }
 
-    Serial.print(">mag:");   Serial.print(crack->fit_peak_height, 6);
-    Serial.print(">crack_x:"); Serial.print(crackXMs, 3);
+    Serial.print(">mag:");        Serial.print(crack->fit_peak_height, 6);
+    Serial.print(">crack_x:");    Serial.print(crackXMs, 3);
     Serial.print(">crack_size:"); Serial.print(scaledCrackSize, 6);
-    Serial.print(">width:"); Serial.print(crack->fit_width_samples, 6);
+    Serial.print(">width:");      Serial.print(crack->fit_width_samples, 6);
   }
   Serial.print(">t:"); Serial.print(now_ms);
   Serial.println("|xy");  // Teleplot directive: render Rp vs L as X-Y.

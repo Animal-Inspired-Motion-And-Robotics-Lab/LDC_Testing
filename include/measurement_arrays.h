@@ -1,11 +1,23 @@
+// Storage + preprocessing for the (Rp, L) sample stream. See
+// measurement_arrays.cpp for the pipeline overview (smooth → rotate → store).
+
 #ifndef MEASUREMENT_ARRAYS_H
 #define MEASUREMENT_ARRAYS_H
 
 #include <stdbool.h>
 #include <stddef.h>
 
+// Push one raw sample through smoothing + rotation and append it to history.
+// Called every tick from main.cpp.
 void appendMeasurement(float rp_ohms, float l_uH);
+
+// Trend angle of L vs Rp (radians) over the most recent samples. Returns NaN
+// before any data has arrived or for a degenerate (constant-Rp) cloud. Used
+// by calibration.cpp to derive a per-substrate rotation angle.
 float calculateDominantAngleRecent(size_t requested_samples, size_t* used_samples);
+
+// Mean Rp and mean L over the most recent samples; used as the rotation
+// center stored during calibration. Returns false on an empty history.
 bool getRecentMeasurementMean(size_t requested_samples, float* mean_rp,
 							  float* mean_l, size_t* used_samples);
 
