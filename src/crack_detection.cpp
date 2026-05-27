@@ -14,7 +14,6 @@ static constexpr float kDefaultMinParabolaR2 = 0.90f;
 static crack_detection_config_t gConfig = {0.1f, 100, kDefaultMinParabolaR2,
                                            (kPi * 0.25f), kPi, 1.0f};
 static bool gInitialized = false;
-static float gTotalLengthEstimate = 0.0f;
 static bool gPreviousQualified = false;
 static size_t gRefractoryRemaining = 0;
 
@@ -79,10 +78,12 @@ bool angleInRange(float angleRad, float minAngleRad, float maxAngleRad) {
 
 bool fitParabolaForWindow(size_t sampleCount,
                           float* peakHeight,
+                          float* peakXSamples,
                           float* halfPeakHeight,
                           float* widthSamples,
                           float* fitR2) {
-  if (peakHeight == nullptr || halfPeakHeight == nullptr ||
+  if (peakHeight == nullptr || peakXSamples == nullptr ||
+      halfPeakHeight == nullptr ||
       widthSamples == nullptr || fitR2 == nullptr) {
     return false;
   }
@@ -228,6 +229,7 @@ bool fitParabolaForWindow(size_t sampleCount,
   }
 
   *peakHeight = fittedPeak;
+  *peakXSamples = xVertex;
   *halfPeakHeight = halfHeight;
   *widthSamples = fittedWidthSamples;
   *fitR2 = r2;
@@ -266,13 +268,12 @@ void crackDetectionInit(const crack_detection_config_t* config) {
     gConfig.length_estimate_scale = 0.0f;
   }
 
-  gTotalLengthEstimate = 0.0f;
   gPreviousQualified = false;
   gRefractoryRemaining = 0;
   gInitialized = true;
 }
 
-bool crackDetectionCheck(uint32_t timestamp_ms, crack_detection_result_t* result) {
+bool crackDetectionCheck(crack_detection_result_t* result) {
   if (!gInitialized) {
     crackDetectionInit(nullptr);
   }
@@ -283,35 +284,50 @@ bool crackDetectionCheck(uint32_t timestamp_ms, crack_detection_result_t* result
 
   if (result != nullptr) {
     result->detected = false;
-    result->crack_size = 0.0f;
     result->fit_peak_height = 0.0f;
+    result->fit_peak_x_samples = 0.0f;
     result->fit_half_peak_height = 0.0f;
     result->fit_width_samples = 0.0f;
     result->fit_r2 = 0.0f;
-    result->total_length_estimate = gTotalLengthEstimate;
-    result->timestamp_ms = timestamp_ms;
+    result->reject_reason = nullptr;
   }
 
   float fitPeakHeight = 0.0f;
+  float fitPeakXSamples = 0.0f;
   float fitHalfPeakHeight = 0.0f;
   float fitWidthSamples = 0.0f;
   float fitR2 = 0.0f;
   if (!fitParabolaForWindow(gConfig.window_samples,
-                            &fitPeakHeight, &fitHalfPeakHeight,
+                            &fitPeakHeight, &fitPeakXSamples,
+                            &fitHalfPeakHeight,
                             &fitWidthSamples, &fitR2)) {
+    // No fit at all — leave reject_reason nullptr (too noisy to report).
     gPreviousQualified = false;
     return false;
   }
 
-  const bool parabolaQualified = (fitR2 >= gConfig.min_parabola_r2) &&
-                                 (fitPeakHeight >= gConfig.threshold);
-  if (!parabolaQualified) {
+  if (result != nullptr) {
+    result->fit_peak_height = fitPeakHeight;
+    result->fit_peak_x_samples = fitPeakXSamples;
+    result->fit_half_peak_height = fitHalfPeakHeight;
+    result->fit_width_samples = fitWidthSamples;
+    result->fit_r2 = fitR2;
+  }
+
+  if (fitR2 < gConfig.min_parabola_r2) {
+    if (result != nullptr) result->reject_reason = "low_r2";
+    gPreviousQualified = false;
+    return false;
+  }
+  if (fitPeakHeight < gConfig.threshold) {
+    if (result != nullptr) result->reject_reason = "threshold";
     gPreviousQualified = false;
     return false;
   }
 
   float phaseAngleRad = NAN;
   if (!getPhaseAngleForWindow(gConfig.window_samples, &phaseAngleRad)) {
+    if (result != nullptr) result->reject_reason = "no_phase";
     gPreviousQualified = false;
     return false;
   }
@@ -322,32 +338,44 @@ bool crackDetectionCheck(uint32_t timestamp_ms, crack_detection_result_t* result
       angleInRange(normalizedPhase, gConfig.min_phase_angle_rad, gConfig.max_phase_angle_rad) ||
       angleInRange(oppositePhase, gConfig.min_phase_angle_rad, gConfig.max_phase_angle_rad);
   if (!phaseQualified) {
+    // Both phase representatives missed the cone. Pick the one closer to the
+    // cone and report which boundary it overshot.
+    const float minAngle = gConfig.min_phase_angle_rad;
+    const float maxAngle = gConfig.max_phase_angle_rad;
+    auto missInfo = [minAngle, maxAngle](float angle, float* distance, bool* low) {
+      if (angle < minAngle) { *distance = minAngle - angle; *low = true; }
+      else                  { *distance = angle - maxAngle;  *low = false; }
+    };
+    float distNorm = 0.0f, distOpp = 0.0f;
+    bool lowNorm = false, lowOpp = false;
+    missInfo(normalizedPhase, &distNorm, &lowNorm);
+    missInfo(oppositePhase, &distOpp, &lowOpp);
+    const bool isLow = (distNorm <= distOpp) ? lowNorm : lowOpp;
+    if (result != nullptr) result->reject_reason = isLow ? "phase_low" : "phase_high";
     gPreviousQualified = false;
     return false;
   }
 
   if (gRefractoryRemaining > 0) {
+    if (result != nullptr) result->reject_reason = "refractory";
     gPreviousQualified = true;
     return false;
   }
 
   if (gPreviousQualified) {
+    if (result != nullptr) result->reject_reason = "held";
     return false;
   }
   gPreviousQualified = true;
   gRefractoryRemaining = computeRefractorySamples(fitWidthSamples);
 
-  gTotalLengthEstimate += (fitPeakHeight * gConfig.length_estimate_scale);
-
   if (result != nullptr) {
     result->detected = true;
-    result->crack_size = fitPeakHeight;
     result->fit_peak_height = fitPeakHeight;
+    result->fit_peak_x_samples = fitPeakXSamples;
     result->fit_half_peak_height = fitHalfPeakHeight;
     result->fit_width_samples = fitWidthSamples;
     result->fit_r2 = fitR2;
-    result->total_length_estimate = gTotalLengthEstimate;
-    result->timestamp_ms = timestamp_ms;
   }
 
   return true;
@@ -455,18 +483,4 @@ float crackDetectionGetLengthEstimateScale(void) {
     crackDetectionInit(nullptr);
   }
   return gConfig.length_estimate_scale;
-}
-
-float crackDetectionGetTotalLengthEstimate(void) {
-  if (!gInitialized) {
-    crackDetectionInit(nullptr);
-  }
-  return gTotalLengthEstimate;
-}
-
-void crackDetectionResetTotalLengthEstimate(void) {
-  if (!gInitialized) {
-    crackDetectionInit(nullptr);
-  }
-  gTotalLengthEstimate = 0.0f;
 }

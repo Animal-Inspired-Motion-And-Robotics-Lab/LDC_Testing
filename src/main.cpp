@@ -4,8 +4,9 @@
 #include "ldc1101.h"
 #include "measurement_arrays.h"
 #include "serial_commands.h"
+#include "telemetry.h"
 
-const char* fw_version = "0.2.4";
+const char* fw_version = "0.2.5";
 
 //Default delay between readings (reconfigure over serial)
 static constexpr uint32_t kDefaultReadingDelayMs = 25;
@@ -42,23 +43,21 @@ void setup() {
   serial_command_state_t initialState = {LDC1101_MODE_RP_L, LDC_SPEED_BALANCED_1,
       true, false, true, false, kDefaultReadingDelayMs};
   
-  //Initialize the LDC1101
+  //Initialize the LDC1101; serialCommandsInit() pushes the seeded
+  //sensor/mode/speed values to the chip via ldc1101_configure().
   ldc1101_init();
-  ldc1101_configure(kSensorL_H, kSensorC_F, kSensorQ,
-      LDC1101_MODE_RP_L, LDC_SPEED_BALANCED_1,
-      0, -1);
   serialCommandsInit(&commandConfig, &initialState);
 
   //Add smoothing for incoming data
   setFilterWindow(25); //Set to 1 for raw data pass-through
 
   crack_detection_config_t crackConfig = {
-      0.015f,  // threshold above rotated x-axis
-      80,   // window_samples
-      0.5f, // min_parabola_r2
+      0.01f,  // threshold above rotated x-axis
+      110,   // window_samples (change as robot speed changes)
+      0.5f, // min_parabola_r2 (goodness of fit)
       0.785f, // min_phase_angle_rad (pi/4)
       3.14f,  // max_phase_angle_rad (pi)
-      1.0f   // length_estimate_scale
+      220.0f   // length_estimate_scale (thou per uH)
   };
   crackDetectionInit(&crackConfig);
 
@@ -81,7 +80,7 @@ void loop() {
       appendMeasurement(m.Rp_ohms, m.L_uH); //Add the new measurements to their arrays
 
     crack_detection_result_t crackResult = {};
-    bool crackDetected = crackDetectionCheck(now, &crackResult);
+    bool crackDetected = crackDetectionCheck(&crackResult);
 
     //Check for cracks only if calibrated and rotated
     if (state.rotated) {
@@ -90,36 +89,7 @@ void loop() {
       }
     }
 
-    //Print out either rotated or unrotated values
-    float rpToPrint = state.rotated ? getLatestRotatedRp() : getLatestFilteredRp();
-    float lToPrint = state.rotated ? getLatestRotatedL() : getLatestFilteredL();
-    if (state.mode == LDC1101_MODE_LHR) { rpToPrint = 0.0f; }
-    Serial.print(">Rp:"); Serial.print(rpToPrint, 3);
-    Serial.print(">L:"); Serial.print(lToPrint, 6);
-    if (state.crack_output && crackDetected) {
-      Serial.print(">mag:"); Serial.print(crackResult.fit_peak_height, 6);
-      Serial.print(">half:"); Serial.print(crackResult.fit_half_peak_height, 6);
-      Serial.print(">width:"); Serial.print(crackResult.fit_width_samples, 6);
-    }
-    Serial.print(">t:"); Serial.print(now);
-    Serial.println("|xy"); //Indicates x-y values for Teleplot
-
-    if (state.crack_debug_output) {
-      Serial.print("crack det="); Serial.print(crackResult.detected ? 1 : 0);
-      Serial.print(" crack="); Serial.print(crackResult.crack_size, 6);
-      Serial.print(" fit_peak="); Serial.print(crackResult.fit_peak_height, 6);
-      Serial.print(" fit_half="); Serial.print(crackResult.fit_half_peak_height, 6);
-      Serial.print(" fit_width="); Serial.print(crackResult.fit_width_samples, 6);
-      Serial.print(" fit_r2="); Serial.print(crackResult.fit_r2, 6);
-      Serial.print(" crack_total="); Serial.print(crackResult.total_length_estimate, 6);
-      Serial.print(" threshold="); Serial.print(crackDetectionGetThreshold(), 6);
-      Serial.print(" min_r2="); Serial.print(crackDetectionGetMinParabolaR2(), 6);
-      Serial.print(" phase_min="); Serial.print(crackDetectionGetMinPhaseAngleRad(), 6);
-      Serial.print(" phase_max="); Serial.print(crackDetectionGetMaxPhaseAngleRad(), 6);
-      Serial.print(" window="); Serial.print((unsigned int)crackDetectionGetWindowSamples());
-      Serial.print(" crack_scale="); Serial.print(crackDetectionGetLengthEstimateScale(), 6);
-      Serial.print(" rotated="); Serial.println(state.rotated ? "on" : "off");
-    }
+    telemetryEmitSample(now, &state, crackDetected, &crackResult);
     
   }
 

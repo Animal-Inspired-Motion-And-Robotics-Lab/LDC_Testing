@@ -44,73 +44,87 @@ void configureSensor() {
       gConfig.switch_enable, gConfig.switch_gpio);
 }
 
+// Help and status mirror each other: same fields, same order, same names.
+// Each `<name>` command shown here corresponds 1:1 to a `<name>=...` token
+// printed by `status`.
 void printHelp() {
   Serial.println("commands:");
-  Serial.println("  status");
-  Serial.println("  l_h [uH]");
-  Serial.println("  c_f [pF]");
-  Serial.println("  q [ratio]");
-  Serial.println("  calibrate [samples]");
-  Serial.println("  angle [radians]");
-  Serial.println("  rotated on|off");
-  Serial.println("  mode lrp|lhr");
+  Serial.println("  help                       // show this list");
+  Serial.println("  status                     // print all current values");
+
+  // Sensor parameters.
+  Serial.println("  l_h [uH]                   // sensor inductance");
+  Serial.println("  c_f [pF]                   // sensor capacitance");
+  Serial.println("  q [ratio]                  // sensor quality factor");
+
+  // Reading mode.
+  Serial.println("  mode lrp|lhr               // measurement mode");
   Serial.println("  speed accuracy|balanced1|balanced2|fast");
-  Serial.println("  stream on|off");
-  Serial.println("  delay <ms>");
-  Serial.println("  smoothing <n>");
-  Serial.println("  window [n]                 // crack tuning: parabola fit window samples");
-  Serial.println("  crack [threshold]          // crack tuning: parabola peak above baseline");
-  Serial.println("  crackr2 [0..1]             // crack tuning: minimum parabola R2 fit");
-  Serial.println("  crackphase [min max]       // crack tuning: allowed phase angle range (rad)");
-  Serial.println("  cracklen [reset]           // show/reset accumulated length estimate");
-  Serial.println("  crack_output on|off        // emit >mag >half >width for qualified cracks");
-  Serial.println("  crackdebug on|off          // print crack detector debug state");
+  Serial.println("  stream on|off              // streaming output on/off");
+  Serial.println("  delay <ms>                 // sample period");
+
+  // Signal processing / calibration.
+  Serial.println("  smoothing <n>              // moving-average window");
+  Serial.println("  rotated on|off             // apply calibrated rotation");
+  Serial.println("  angle [radians]            // get/set rotation angle");
+  Serial.println("  calibrate [samples]        // run PCA calibration on recent samples");
+
+  // Crack detection tuning.
+  Serial.println("  crack_window [n]           // parabola fit window samples");
+  Serial.println("  crack_threshold [val]      // min parabola peak above baseline");
+  Serial.println("  crack_r2 [0..1]            // min parabola R^2 fit");
+  Serial.println("  crack_phase [min max]      // allowed phase angle range (rad)");
+  Serial.println("  crack_scale [scale]        // peak->length scale factor");
+  Serial.println("  crack_output on|off        // emit per-crack >mag >crack_x >crack_size >width");
+  Serial.println("  crack_debug on|off         // print crack detector debug state");
 }
 
 void printStatus() {
-  const float angleRad = getRotationAngle();
-  
-  //Sensor variables
-  Serial.print("sensor_l_h=");
-  Serial.print(gConfig.sensor_l_h, 9);
-  Serial.print(" sensor_c_f=");
-  Serial.print(gConfig.sensor_c_f, 12);
-  Serial.print(" sensor_q=");
+  // Sensor parameters. Print in the same units the commands accept.
+  Serial.print("l_h=");
+  Serial.print(gConfig.sensor_l_h / kMicroToBase, 6);
+  Serial.print(" c_f=");
+  Serial.print(gConfig.sensor_c_f / kPicoToBase, 6);
+  Serial.print(" q=");
   Serial.println(gConfig.sensor_q, 6);
 
-  //Reading settings
-  Serial.print("status mode=");
+  // Reading mode.
+  Serial.print("mode=");
   Serial.print(modeToString(gState.mode));
   Serial.print(" speed=");
   Serial.print(speedToString(gState.speed_mode));
   Serial.print(" stream=");
   Serial.print(gState.streaming_enabled ? "on" : "off");
-  Serial.print(" delay_ms=");
-  Serial.print((unsigned long)gState.reading_delay_ms);
+  Serial.print(" delay=");
+  Serial.println((unsigned long)gState.reading_delay_ms);
 
-  //Signal processing
+  // Signal processing.
+  Serial.print("smoothing=");
+  Serial.print((unsigned int)getFilterWindow());
   Serial.print(" rotated=");
   Serial.print(gState.rotated ? "on" : "off");
-  Serial.print(" angle_rad=");
-  Serial.print(angleRad, 6);
-  Serial.print(" smoothing=");
-  Serial.print((unsigned int)getFilterWindow());
+  Serial.print(" angle=");
+  Serial.println(getRotationAngle(), 6);
 
-  //Crack detection
-  Serial.print(" crack_window=");
+  // Crack detection.
+  Serial.print("crack_window=");
   Serial.print((unsigned int)crackDetectionGetWindowSamples());
   Serial.print(" crack_threshold=");
   Serial.print(crackDetectionGetThreshold(), 6);
   Serial.print(" crack_r2=");
-  Serial.print(crackDetectionGetMinParabolaR2(), 6);
-  Serial.print(" crack_phase_min=");
+  Serial.println(crackDetectionGetMinParabolaR2(), 6);
+
+  Serial.print("crack_phase_min=");
   Serial.print(crackDetectionGetMinPhaseAngleRad(), 6);
   Serial.print(" crack_phase_max=");
   Serial.print(crackDetectionGetMaxPhaseAngleRad(), 6);
   Serial.print(" crack_scale=");
-  Serial.print(crackDetectionGetLengthEstimateScale(), 6);
-  Serial.print(" crack_total=");
-  Serial.println(crackDetectionGetTotalLengthEstimate(), 6);
+  Serial.println(crackDetectionGetLengthEstimateScale(), 6);
+
+  Serial.print("crack_output=");
+  Serial.print(gState.crack_output ? "on" : "off");
+  Serial.print(" crack_debug=");
+  Serial.println(gState.crack_debug_output ? "on" : "off");
 }
 
 void processCommand(char* line) {
@@ -212,11 +226,8 @@ void processCommand(char* line) {
       setRotationAngle(parsed);
     }
 
-    const float angleRad = getRotationAngle();
-    Serial.print("rotation_angle_rad=");
-    Serial.println(angleRad, 6);
-    Serial.print("rotation_enabled=");
-    Serial.println(gState.rotated ? "on" : "off");
+    Serial.print("angle=");
+    Serial.println(getRotationAngle(), 6);
     return;
   }
 
@@ -279,62 +290,62 @@ void processCommand(char* line) {
     return;
   }
 
-  if (strcmp(token, "window") == 0) {
+  if (strcmp(token, "crack_window") == 0) {
     char* value = strtok(nullptr, " \t");
     if (value != nullptr) {
       long parsed = strtol(value, nullptr, 10);
       if (parsed <= 0) {
-        Serial.println("ERR window must be >= 1");
+        Serial.println("ERR crack_window must be >= 1");
         return;
       }
       crackDetectionSetWindowSamples((size_t)parsed);
     }
 
-    Serial.print("window=");
+    Serial.print("crack_window=");
     Serial.println((unsigned int)crackDetectionGetWindowSamples());
     return;
   }
 
-  if (strcmp(token, "crack") == 0) {
+  if (strcmp(token, "crack_threshold") == 0) {
     char* value = strtok(nullptr, " \t");
     if (value != nullptr) {
       char* end = nullptr;
       float parsed = strtof(value, &end);
       if (end == value || *end != '\0' || parsed < 0.0f) {
-        Serial.println("ERR crack must be >= 0");
+        Serial.println("ERR crack_threshold must be >= 0");
         return;
       }
       crackDetectionSetThreshold(parsed);
     }
 
-    Serial.print("crack=");
+    Serial.print("crack_threshold=");
     Serial.println(crackDetectionGetThreshold(), 6);
     return;
   }
 
-  if (strcmp(token, "crackr2") == 0) {
+  if (strcmp(token, "crack_r2") == 0) {
     char* value = strtok(nullptr, " \t");
     if (value != nullptr) {
       char* end = nullptr;
       float parsed = strtof(value, &end);
       if (end == value || *end != '\0' || parsed < 0.0f || parsed > 1.0f) {
-        Serial.println("ERR crackr2 must be 0..1");
+        Serial.println("ERR crack_r2 must be 0..1");
         return;
       }
       crackDetectionSetMinParabolaR2(parsed);
     }
 
-    Serial.print("crackr2=");
+    Serial.print("crack_r2=");
     Serial.println(crackDetectionGetMinParabolaR2(), 6);
     return;
   }
 
-  if (strcmp(token, "crackphase") == 0) {
+  if (strcmp(token, "crack_phase") == 0) {
     char* minValue = strtok(nullptr, " \t");
     if (minValue != nullptr) {
       char* maxValue = strtok(nullptr, " \t");
       if (maxValue == nullptr) {
-        Serial.println("ERR usage: crackphase [min max]");
+        Serial.println("ERR usage: crack_phase [min max]");
         return;
       }
 
@@ -344,75 +355,60 @@ void processCommand(char* line) {
       float parsedMax = strtof(maxValue, &maxEnd);
       if (minEnd == minValue || *minEnd != '\0' ||
           maxEnd == maxValue || *maxEnd != '\0') {
-        Serial.println("ERR usage: crackphase [min max]");
+        Serial.println("ERR usage: crack_phase [min max]");
         return;
       }
 
       char* extra = strtok(nullptr, " \t");
       if (extra != nullptr) {
-        Serial.println("ERR usage: crackphase [min max]");
+        Serial.println("ERR usage: crack_phase [min max]");
         return;
       }
 
       crackDetectionSetPhaseAngleRange(parsedMin, parsedMax);
     }
 
-    Serial.print("crackphase_min=");
+    Serial.print("crack_phase_min=");
     Serial.print(crackDetectionGetMinPhaseAngleRad(), 6);
-    Serial.print(" crackphase_max=");
+    Serial.print(" crack_phase_max=");
     Serial.println(crackDetectionGetMaxPhaseAngleRad(), 6);
     return;
   }
 
-  if (strcmp(token, "crackscale") == 0) {
+  if (strcmp(token, "crack_scale") == 0) {
     char* value = strtok(nullptr, " \t");
     if (value != nullptr) {
       char* end = nullptr;
       float parsed = strtof(value, &end);
       if (end == value || *end != '\0' || parsed < 0.0f) {
-        Serial.println("ERR crackscale must be >= 0");
+        Serial.println("ERR crack_scale must be >= 0");
         return;
       }
       crackDetectionSetLengthEstimateScale(parsed);
     }
 
-    Serial.print("crackscale=");
+    Serial.print("crack_scale=");
     Serial.println(crackDetectionGetLengthEstimateScale(), 6);
     return;
   }
 
-  if (strcmp(token, "cracklen") == 0) {
-    char* value = strtok(nullptr, " \t");
-    if (value != nullptr) {
-      if (strcmp(value, "reset") != 0) {
-        Serial.println("ERR usage: cracklen [reset]");
-        return;
-      }
-      crackDetectionResetTotalLengthEstimate();
-    }
-
-    Serial.print("cracklen=");
-    Serial.println(crackDetectionGetTotalLengthEstimate(), 6);
-    return;
-  }
-
-  if (strcmp(token, "crackdebug") == 0) {
+  if (strcmp(token, "crack_debug") == 0) {
     char* value = strtok(nullptr, " \t");
     if (value == nullptr) {
-      Serial.println("ERR usage: crackdebug on|off");
+      Serial.println("ERR usage: crack_debug on|off");
       return;
     }
     if (strcmp(value, "on") == 0) {
       gState.crack_debug_output = true;
-      Serial.println("OK crackdebug on");
+      Serial.println("OK crack_debug on");
       return;
     }
     if (strcmp(value, "off") == 0) {
       gState.crack_debug_output = false;
-      Serial.println("OK crackdebug off");
+      Serial.println("OK crack_debug off");
       return;
     }
-    Serial.println("ERR usage: crackdebug on|off");
+    Serial.println("ERR usage: crack_debug on|off");
     return;
   }
 
@@ -549,6 +545,8 @@ void serialCommandsInit(const serial_command_config_t* config,
   setRotationEnabled(gState.rotated);
   gCommandLength = 0;
   gInitialized = true;
+
+  configureSensor();
 
   printHelp();
 }

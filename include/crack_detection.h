@@ -16,19 +16,22 @@ typedef struct {
 
 typedef struct {
   bool detected;
-  float crack_size;
   float fit_peak_height;
+  float fit_peak_x_samples;
   float fit_half_peak_height;
   float fit_width_samples;
   float fit_r2;
-  float total_length_estimate;
-  uint32_t timestamp_ms;
+  // When `detected` is false and the parabola fit succeeded, this points to a
+  // static string explaining which check rejected the window (e.g. "low_r2",
+  // "threshold", "phase_low", "phase_high", "no_phase", "refractory", "held").
+  // nullptr means no rejection reason (either detected, or no fit attempted).
+  const char* reject_reason;
 } crack_detection_result_t;
 
 void crackDetectionInit(const crack_detection_config_t* config);
 
 // Returns true when a threshold-qualified window completes and emits a crack size.
-bool crackDetectionCheck(uint32_t timestamp_ms, crack_detection_result_t* result);
+bool crackDetectionCheck(crack_detection_result_t* result);
 
 void crackDetectionSetWindowSamples(size_t window_samples);
 size_t crackDetectionGetWindowSamples(void);
@@ -45,8 +48,5 @@ float crackDetectionGetMaxPhaseAngleRad(void);
 
 void crackDetectionSetLengthEstimateScale(float length_estimate_scale);
 float crackDetectionGetLengthEstimateScale(void);
-
-float crackDetectionGetTotalLengthEstimate(void);
-void crackDetectionResetTotalLengthEstimate(void);
 
 #endif

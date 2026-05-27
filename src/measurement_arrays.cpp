@@ -1,6 +1,5 @@
 #include "measurement_arrays.h"
 
-#include <Arduino.h>
 #include <math.h>
 
 static constexpr size_t array_length = 1000;
@@ -10,7 +9,6 @@ static float L_array[array_length] = {0.0f};
 static float rotatedRpArray[array_length] = {0.0f};
 static float rotatedLArray[array_length] = {0.0f};
 static size_t measurementCount = 0;
-static size_t absoluteMeasurementCount = 0;
 
 static constexpr size_t kMaxFilterWindow = 512;
 static float rpRing[kMaxFilterWindow] = {0.0f};
@@ -101,7 +99,6 @@ bool getRotationEnabled(void) { return rotationEnabled; }
 
 void appendMeasurement(float rp_ohms, float l_uH) {
   float rp_f, l_f;
-  absoluteMeasurementCount++;
   filterSample(rp_ohms, l_uH, rp_f, l_f);
 
   if (rotationEnabled) {
@@ -138,34 +135,6 @@ void appendMeasurement(float rp_ohms, float l_uH) {
   rotatedLArray[array_length - 1] = latestRotatedL;
 }
 
-void printMeasurementArrays(void) {
-  Serial.print("Rp_array:");
-  for (size_t i = 0; i < array_length; ++i) {
-    if (i > 0) {
-      Serial.print(',');
-    }
-    Serial.print(Rp_array[i], 3);
-  }
-  Serial.println();
-
-  Serial.print("L_array:");
-  for (size_t i = 0; i < array_length; ++i) {
-    if (i > 0) {
-      Serial.print(',');
-    }
-    Serial.print(L_array[i], 6);
-  }
-  Serial.println();
-}
-
-size_t getMeasurementCount(void) {
-  return measurementCount;
-}
-
-size_t getMeasurementCountAbsolute(void) {
-  return absoluteMeasurementCount;
-}
-
 bool getRecentMeasurementMean(size_t requested_samples, float* mean_rp,
                               float* mean_l, size_t* used_samples) {
   if (measurementCount == 0 || mean_rp == nullptr || mean_l == nullptr) {
@@ -193,25 +162,6 @@ bool getRecentMeasurementMean(size_t requested_samples, float* mean_rp,
   if (used_samples != nullptr) {
     *used_samples = sampleCount;
   }
-  return true;
-}
-
-bool getRecentRotatedDelta(size_t lookback_samples, float* delta_rp,
-                           float* delta_l) {
-  if (delta_rp == nullptr || delta_l == nullptr) {
-    return false;
-  }
-  if (lookback_samples == 0) {
-    return false;
-  }
-  if (measurementCount <= lookback_samples) {
-    return false;
-  }
-
-  const size_t latestIdx = measurementCount - 1;
-  const size_t olderIdx = latestIdx - lookback_samples;
-  *delta_rp = rotatedRpArray[latestIdx] - rotatedRpArray[olderIdx];
-  *delta_l = rotatedLArray[latestIdx] - rotatedLArray[olderIdx];
   return true;
 }
 
@@ -267,8 +217,4 @@ float calculateDominantAngleRecent(size_t requested_samples, size_t* used_sample
   float theta = atanf(slope);
 
   return theta; // radians
-}
-
-float calculateDominantAngle(void) {
-  return calculateDominantAngleRecent(0, nullptr);
 }
