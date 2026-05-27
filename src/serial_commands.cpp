@@ -95,6 +95,7 @@ void printHelp() {
   Serial.println("  rotated on|off             // apply calibrated rotation");
   Serial.println("  angle [radians]            // get/set rotation angle");
   Serial.println("  calibrate [samples]        // run PCA calibration on recent samples");
+  Serial.println("  baseline [samples]         // re-anchor rotation center to recent flat signal");
 
   // Crack detection tuning.
   Serial.println("  crack_window [n]           // parabola fit window samples");
@@ -562,6 +563,32 @@ void processCommand(char* line) {
     Serial.println((unsigned int)sampleCount);
     calibration_result_t result = calibrationRun(gConfig.sensor_c_f, sampleCount);
     calibrationPrintResult(&result);
+    return;
+  }
+
+  // --- Baseline re-anchor -------------------------------------------------
+  // Like `calibrate`, but only re-anchors the rotation center to the current
+  // mean (Rp, L) — leaves the rotation angle alone. Use this to re-zero the
+  // crack_threshold reference after thermal/baseline drift without redoing
+  // the substrate-trend PCA.
+
+  if (strcmp(token, "baseline") == 0) {
+    char* value = strtok(nullptr, " \t");
+    size_t sampleCount = 40;
+    if (value != nullptr) {
+      long parsed = strtol(value, nullptr, 10);
+      if (parsed <= 0 || parsed > kMaxCalibrationSamples) {
+        Serial.print("ERR baseline samples must be 1..");
+        Serial.println(kMaxCalibrationSamples);
+        return;
+      }
+      sampleCount = (size_t)parsed;
+    }
+    ledFlash(10, 30);
+    Serial.print("baseline start samples=");
+    Serial.println((unsigned int)sampleCount);
+    baseline_result_t result = baselineRun(sampleCount);
+    baselinePrintResult(&result);
     return;
   }
 
