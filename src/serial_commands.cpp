@@ -26,6 +26,7 @@
 #include "calibration.h"
 #include "crack_detection.h"
 #include "measurement_arrays.h"
+#include "memory.h"
 
 namespace {
 
@@ -105,6 +106,12 @@ void printHelp() {
   Serial.println("  crack_scale [scale]        // peak->length scale factor");
   Serial.println("  crack_output on|off        // emit per-crack >mag >crack_x >crack_size >width");
   Serial.println("  crack_debug on|off         // print crack detector debug state");
+
+  // Persistent per-material profiles (saved to NVS flash).
+  Serial.println("  save <material>            // store all settings under a name");
+  Serial.println("  retrieve <material>        // load settings saved under a name");
+  Serial.println("  materials                  // list saved material names");
+  Serial.println("  forget <material>          // delete a saved material");
 }
 
 void printStatus() {
@@ -615,6 +622,73 @@ void processCommand(char* line) {
       return;
     }
     Serial.println("ERR usage: rotated on|off");
+    return;
+  }
+
+  // --- Persistent material profiles ---------------------------------------
+  // `save` snapshots the full live config/state (plus the rotation and
+  // crack-detector settings memory.cpp reads from their modules) into an NVS
+  // namespace named after the material. `retrieve` loads it back and re-pushes
+  // the sensor parameters to the chip via configureSensor(). `materials` lists
+  // the saved names; `forget` deletes one.
+
+  if (strcmp(token, "save") == 0) {
+    char* name = strtok(nullptr, " \t");
+    if (name == nullptr || strtok(nullptr, " \t") != nullptr) {
+      Serial.println("ERR usage: save <material>");
+      return;
+    }
+    if (memorySaveMaterial(name, &gConfig, &gState)) {
+      Serial.print("OK saved ");
+      Serial.println(name);
+    } else {
+      Serial.println("ERR save failed (bad name or storage error)");
+    }
+    return;
+  }
+
+  if (strcmp(token, "retrieve") == 0 || strcmp(token, "load") == 0) {
+    char* name = strtok(nullptr, " \t");
+    if (name == nullptr || strtok(nullptr, " \t") != nullptr) {
+      Serial.println("ERR usage: retrieve <material>");
+      return;
+    }
+    if (memoryRetrieveMaterial(name, &gConfig, &gState)) {
+      // Restored sensor/mode/speed need to reach the chip; rotation and crack
+      // settings were already applied inside memoryRetrieveMaterial().
+      configureSensor();
+      Serial.print("OK retrieved ");
+      Serial.println(name);
+      printStatus();
+    } else {
+      Serial.print("ERR no saved material: ");
+      Serial.println(name);
+    }
+    return;
+  }
+
+  if (strcmp(token, "materials") == 0) {
+    if (strtok(nullptr, " \t") != nullptr) {
+      Serial.println("ERR usage: materials");
+      return;
+    }
+    memoryListMaterials();
+    return;
+  }
+
+  if (strcmp(token, "forget") == 0) {
+    char* name = strtok(nullptr, " \t");
+    if (name == nullptr || strtok(nullptr, " \t") != nullptr) {
+      Serial.println("ERR usage: forget <material>");
+      return;
+    }
+    if (memoryForgetMaterial(name)) {
+      Serial.print("OK forgot ");
+      Serial.println(name);
+    } else {
+      Serial.print("ERR no saved material: ");
+      Serial.println(name);
+    }
     return;
   }
 

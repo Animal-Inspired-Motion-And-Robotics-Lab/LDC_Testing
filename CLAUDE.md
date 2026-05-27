@@ -59,7 +59,17 @@ Each `loop()` tick in [src/main.cpp](src/main.cpp) does, in order:
 
 [src/serial_commands.cpp](src/serial_commands.cpp) is a line-oriented CLI polled from `loop()`. It owns runtime state (`mode`, `speed_mode`, `streaming_enabled`, `rotated`, `crack_output`, `crack_debug_output`, `reading_delay_ms`) and sensor config (`sensor_l_h`, `sensor_c_f`, `sensor_q`, switch settings); `main.cpp` reads these every tick via `serialCommandsGetState()` / `GetConfig()`. Commands that change LDC1101 parameters call `ldc1101_configure()` internally to push the new register values. Send `help` over serial for the full command list, or `status` for current values.
 
-When extending the firmware with a new tunable, the convention is: add it to the relevant module's getter/setter pair, then add a `processCommand` clause in `serial_commands.cpp` and a line to `printHelp()` / `printStatus()` so it's discoverable.
+When extending the firmware with a new tunable, the convention is: add it to the relevant module's getter/setter pair, then add a `processCommand` clause in `serial_commands.cpp` and a line to `printHelp()` / `printStatus()` so it's discoverable. If the value is part of a material's identity (it should survive a power cycle and travel with `save`/`retrieve`), also add a key for it in `memory.cpp` — see below.
+
+### Persistent material profiles (NVS)
+
+[src/memory.cpp](src/memory.cpp) persists a complete settings snapshot — a *material profile* — to the ESP32-S3's NVS flash so a substrate's tuning survives a power cycle and several materials can be stored side by side. Four serial commands drive it: `save <material>`, `retrieve <material>`, `materials` (list), and `forget <material>`.
+
+- **Storage layout.** One NVS namespace per material (named after the material itself), one key per setting. A reserved `_materials` namespace holds a `\n`-delimited index of saved names so `materials` can enumerate them, since NVS can't list namespaces. NVS caps namespace names at 15 chars, so material names are limited to `MEMORY_MAX_NAME_LEN` and a leading `_` is rejected to keep the index private.
+- **What's saved.** Everything user-configurable: the `serial_command_config_t` / `serial_command_state_t` fields, plus the live `measurement_arrays` rotation (filter window, angle, center) and the full `crack_detection_config_t`. `memory.cpp` is the single owner of the key layout — it reads/writes the rotation and crack settings through their module getters/setters directly; only the sensor/mode fields are passed in via the structs.
+- **Division of labor.** `memorySaveMaterial` / `memoryRetrieveMaterial` do **not** touch the LDC1101. After a successful retrieve, `serial_commands.cpp` calls `configureSensor()` to push the restored sensor/mode/speed to the chip; the rotation-enable and crack settings are already applied inside `memoryRetrieveMaterial`. A `v` (schema-version) key written on save doubles as the "profile exists" sentinel that `retrieve` checks.
+
+This means adding a new persisted tunable is a two-touch change: the getter/setter + CLI clause above, **and** a matching `prefs.putX`/`getX` pair in `memorySaveMaterial`/`memoryRetrieveMaterial` (keep the key name ≤ 15 chars).
 
 ### Serial output format
 
