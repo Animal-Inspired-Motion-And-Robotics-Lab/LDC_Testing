@@ -19,7 +19,7 @@
 #include "serial_commands.h"
 #include "telemetry.h"
 
-const char* fw_version = "0.2.6";
+const char* fw_version = "0.2.7";
 
 // Boot defaults — all of these are reconfigurable at runtime via the CLI.
 // Listed in the order setup() consumes them.
@@ -86,8 +86,8 @@ void setup() {
       0.5f,     // min_parabola_r2       — fit must explain at least this much variance
       0.524f,   // min_planar_angle_rad  — 30°; admits |Pearson r(Rp,L)| <= 2/3
                 //                         (Rp and L moderately uncoupled = t-L planar)
-      2.0f,     // max_rp_l_range_ratio  — Stage 2b cap on range(rot Rp) /
-                //                         range(rot L); 0 disables
+      500.0f,   // max_rp_drift_ohms     — Stage 2b cap on fitted Rp drift
+                //                         across window, in ohms; 0 disables
       220.0f    // length_estimate_scale — thou per µH (peak × scale = crack_size)
   };
   crackDetectionInit(&crackConfig);

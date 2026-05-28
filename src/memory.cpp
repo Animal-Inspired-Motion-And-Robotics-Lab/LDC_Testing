@@ -45,9 +45,10 @@ constexpr size_t kIndexBufferLen = 512;
 // half-written or absent namespace reads as "not found". v2 replaced the
 // chord-angle phase keys (crk_pmin / crk_pmax) with a single planar-angle key
 // (crk_pln) when Stage 2 of the crack detector was reworked. v3 added crk_rpr
-// for the Stage 2b range cap. Older profiles still load — missing keys fall
-// back to the live default.
-constexpr uint8_t kSchemaVersion = 3;
+// for a short-lived Stage 2b range-ratio cap. v4 replaced crk_rpr with crk_rpd
+// when Stage 2b switched to a linear-fit Rp drift cap in ohms. Older profiles
+// still load — missing keys fall back to the live default.
+constexpr uint8_t kSchemaVersion = 4;
 
 // Material names map 1:1 to NVS namespace names: 1..MEMORY_MAX_NAME_LEN chars,
 // alphanumeric / '-' / '_', and never a leading '_' (reserved for the index).
@@ -189,7 +190,7 @@ bool memorySaveMaterial(const char* material,
   prefs.putFloat("crk_thr", crackDetectionGetThreshold());
   prefs.putFloat("crk_r2", crackDetectionGetMinParabolaR2());
   prefs.putFloat("crk_pln", crackDetectionGetMinPlanarAngleRad());
-  prefs.putFloat("crk_rpr", crackDetectionGetMaxRpLRangeRatio());
+  prefs.putFloat("crk_rpd", crackDetectionGetMaxRpDriftOhms());
   prefs.putFloat("crk_scl", crackDetectionGetLengthEstimateScale());
 
   prefs.end();
@@ -251,8 +252,8 @@ bool memoryRetrieveMaterial(const char* material,
       prefs.getFloat("crk_r2", crackDetectionGetMinParabolaR2()));
   crackDetectionSetMinPlanarAngleRad(
       prefs.getFloat("crk_pln", crackDetectionGetMinPlanarAngleRad()));
-  crackDetectionSetMaxRpLRangeRatio(
-      prefs.getFloat("crk_rpr", crackDetectionGetMaxRpLRangeRatio()));
+  crackDetectionSetMaxRpDriftOhms(
+      prefs.getFloat("crk_rpd", crackDetectionGetMaxRpDriftOhms()));
   crackDetectionSetLengthEstimateScale(
       prefs.getFloat("crk_scl", crackDetectionGetLengthEstimateScale()));
 

@@ -27,16 +27,21 @@
 //   unit-biased and would reject almost everything. Pearson r divides by the
 //   product of the std deviations, so the units and scale cancel.
 //
-// Stage 2b (rotated-Rp range cap): Pearson r has a known blind spot — when L
-//   peaks symmetrically through the window and Rp moves monotonically across
-//   it, the cov terms cancel and |r| ≈ 0, so the planar check passes even
-//   though the curve is clearly tilted toward Rp. We catch that case with a
-//   second check that compares the raw ranges of rotated Rp and rotated L
-//   directly: reject when range(rotated Rp) > crack_rp_ratio · range(rotated
-//   L). The unit-bias problem doesn't apply here because rotation has already
-//   aligned the substrate baseline along Rp — on a calibrated substrate a
-//   real crack has range(rotated Rp) ≈ noise floor while L bumps, so the two
-//   ranges are in comparable "deviation from baseline" units.
+// Stage 2b (Rp-drift cap): Pearson r has a known blind spot — when L peaks
+//   symmetrically through the window and Rp moves *monotonically* across it,
+//   the cov terms on either side of the L peak cancel and |r| ≈ 0, so the
+//   planar check passes even though the curve is obviously tilted off the
+//   t-L plane. We catch that directly by characterizing the parabola's 3D
+//   plane orientation: for a parabolic L with linear Rp(t) = m·t + b, the
+//   curve lies exactly in the plane spanned by (1, m, 0) and (0, 0, 1),
+//   whose unit normal is (−m, 1, 0)/√(m²+1). The angle between that plane
+//   and the t-L plane (normal (0, 1, 0)) is therefore α = arctan(|m|) — so
+//   the curve's tilt is captured entirely by the slope m of Rp vs t. We fit
+//   that slope by least-squares over the window and reject when the total
+//   predicted drift |m·(N−1)| exceeds crack_rp_drift, in absolute ohms. The
+//   ohm threshold lets the operator pick the unit scale directly from the
+//   phase-space plot ("Rp may drift no more than X Ω across the parabola"),
+//   sidestepping the unit-bias trap of comparing Ω to µH.
 //
 // On a confirmed detection the detector arms a refractory cooldown so that the
 // same physical crack does not emit multiple times as its tail slides through
@@ -62,11 +67,11 @@ static constexpr float kDefaultMinParabolaR2 = 0.90f;
 // the box; tighten with `crack_planar` if too many false positives slip
 // through.
 static constexpr float kDefaultMinPlanarAngleRad = 0.524f;
-// Default Stage 2b cap on range(rotated Rp) / range(rotated L). 2.0 means
-// Rp is allowed to swing up to twice as much as L before the candidate is
-// rejected — permissive enough that the gate fires only on obvious
-// substrate-transition shapes. 0 here would disable the check entirely.
-static constexpr float kDefaultMaxRpLRangeRatio = 500.0f;
+// Default Stage 2b cap on the linear-fit drift of rotated Rp across the
+// window, in ohms. 500 Ω is large enough that sensor-noise wiggle on a
+// calibrated substrate never trips it, but well below the multi-kΩ drift a
+// material transition produces. 0 here would disable the check entirely.
+static constexpr float kDefaultMaxRpDriftOhms = 500.0f;
 
 // Live tuning state. Populated by crackDetectionInit() and the
 // crackDetectionSet*() commands; read on every tick by crackDetectionCheck().
@@ -74,7 +79,7 @@ static constexpr float kDefaultMaxRpLRangeRatio = 500.0f;
 // the real config at boot.
 static crack_detection_config_t gConfig = {0.1f, 100, kDefaultMinParabolaR2,
                                            kDefaultMinPlanarAngleRad,
-                                           kDefaultMaxRpLRangeRatio, 1.0f};
+                                           kDefaultMaxRpDriftOhms, 1.0f};
 static bool gInitialized = false;
 
 // Cross-tick state for the two dedup mechanisms:
@@ -203,35 +208,52 @@ bool getPlanarAngleForWindow(size_t sampleCount, float* planarAngleRad) {
   return true;
 }
 
-// Stage 2b helper: peak-to-peak range of rotated Rp and rotated L over the
-// window. Used to catch the monotonic-Rp / symmetric-L peak case that fools
-// the Pearson planar check. Returns false if the window can't be read.
-bool getAxisRangesForWindow(size_t sampleCount,
-                            float* rangeRp, float* rangeL) {
-  if (rangeRp == nullptr || rangeL == nullptr || sampleCount < 2) {
+// Stage 2b helper: total drift of rotated Rp across the window, predicted by
+// a least-squares linear fit Rp(i) = m·i + b. Returns |m·(N−1)|, the change
+// in fitted Rp from the oldest sample (i = 0) to the newest (i = N−1).
+//
+// Geometrically: for a parabolic L plus linear-in-time Rp, the 3D parabola
+// lies in a plane whose tilt away from the t-L plane is exactly arctan(|m|).
+// Using the absolute fitted drift (Ω) as the threshold lets the operator
+// pick the unit scale directly, instead of trying to compare Ω and µH.
+//
+// Returns false if the window can't be read.
+bool getRpDriftForWindow(size_t sampleCount, float* driftOhms) {
+  if (driftOhms == nullptr || sampleCount < 2) {
     return false;
   }
 
-  float minRp = 0.0f, maxRp = 0.0f, minL = 0.0f, maxL = 0.0f;
+  // Accumulate Σi, Σi², ΣRp, ΣiRp for the closed-form linear fit. We don't
+  // need ΣRp² (no R² for this fit).
+  float sumI = 0.0f;
+  float sumI2 = 0.0f;
+  float sumRp = 0.0f;
+  float sumIRp = 0.0f;
   for (size_t i = 0; i < sampleCount; ++i) {
-    float rp = 0.0f, l = 0.0f;
+    float rp = 0.0f;
+    float l = 0.0f;
     const size_t samplesAgo = sampleCount - 1 - i;
     if (!getRecentRotatedSample(samplesAgo, &rp, &l)) {
       return false;
     }
-    if (i == 0) {
-      minRp = maxRp = rp;
-      minL = maxL = l;
-    } else {
-      if (rp < minRp) { minRp = rp; }
-      else if (rp > maxRp) { maxRp = rp; }
-      if (l < minL) { minL = l; }
-      else if (l > maxL) { maxL = l; }
-    }
+    const float fi = static_cast<float>(i);
+    sumI += fi;
+    sumI2 += fi * fi;
+    sumRp += rp;
+    sumIRp += fi * rp;
   }
 
-  *rangeRp = maxRp - minRp;
-  *rangeL = maxL - minL;
+  // Slope m = (N·ΣiRp − Σi·ΣRp) / (N·Σi² − (Σi)²). Denominator is the
+  // variance of i scaled by N — strictly positive for N ≥ 2, but guard
+  // anyway against float underflow on a one-sample edge case.
+  const float n = static_cast<float>(sampleCount);
+  const float denom = n * sumI2 - sumI * sumI;
+  if (denom < kPeakEpsilon) {
+    return false;
+  }
+  const float slope = (n * sumIRp - sumI * sumRp) / denom;
+
+  *driftOhms = fabsf(slope * (n - 1.0f));
   return true;
 }
 
@@ -466,10 +488,10 @@ void crackDetectionInit(const crack_detection_config_t* config) {
     gConfig.min_planar_angle_rad = kPi * 0.5f;
   }
 
-  // 0 disables the Stage 2b cap; anything negative was probably a typo, so
-  // fold it to 0 (disabled) rather than treat it as the loosest possible cap.
-  if (gConfig.max_rp_l_range_ratio < 0.0f) {
-    gConfig.max_rp_l_range_ratio = 0.0f;
+  // 0 disables the Stage 2b drift cap; anything negative was probably a
+  // typo, so fold it to 0 rather than treat it as the loosest possible cap.
+  if (gConfig.max_rp_drift_ohms < 0.0f) {
+    gConfig.max_rp_drift_ohms = 0.0f;
   }
 
   if (gConfig.length_estimate_scale < 0.0f) {
@@ -550,39 +572,29 @@ bool crackDetectionCheck(crack_detection_result_t* result) {
   }
 
   // --- Stage 2: 3D planarity check. ---
-  // Compute the planar angle = atan2(stdL, stdRp) over the rotated window. The
-  // window passes only when L motion dominates Rp motion strongly enough that
-  // the candidate's plane is close to the t-L plane (real crack) rather than
-  // tilted toward the Rp axis (substrate motion).
+  // Compute the Pearson-based planar angle over the rotated window and reject
+  // when it's smaller than crack_planar — meaning Rp and L are linearly
+  // locked together, the signature of lift-off / tilt / coupling change.
+  // If the helper can't produce an angle (degenerate window after Stage 1 —
+  // essentially unreachable in practice) we pass through to Stage 2b.
   float planarAngleRad = NAN;
-  if (!getPlanarAngleForWindow(gConfig.window_samples, &planarAngleRad)) {
-    // Window had no usable variance — almost certainly warmup or a perfectly
-    // flat baseline. Treat like "no fit"; emit a reason so debug shows it.
-    if (result != nullptr) result->reject_reason = "no_planar";
-    gPreviousQualified = false;
-    return false;
-  }
-  if (planarAngleRad < gConfig.min_planar_angle_rad) {
-    // The parabola is too tilted toward the Rp axis — std(Rp) is large
-    // relative to std(L), so the candidate is probably substrate motion.
+  if (getPlanarAngleForWindow(gConfig.window_samples, &planarAngleRad) &&
+      planarAngleRad < gConfig.min_planar_angle_rad) {
     if (result != nullptr) result->reject_reason = "not_planar";
     gPreviousQualified = false;
     return false;
   }
 
-  // --- Stage 2b: rotated-Rp range cap. ---
+  // --- Stage 2b: rotated-Rp drift cap. ---
   // Pearson r misses the monotonic-Rp / symmetric-L peak case (cov terms
-  // cancel, |r| ≈ 0, planar_angle ≈ π/2). Compare the raw peak-to-peak
-  // ranges in the rotated frame instead: a real crack has rotated Rp pinned
-  // near zero while L bumps, so range(rotated Rp) ≪ range(rotated L). 0
-  // disables the check.
-  if (gConfig.max_rp_l_range_ratio > 0.0f) {
-    float rangeRp = 0.0f;
-    float rangeL = 0.0f;
-    if (getAxisRangesForWindow(gConfig.window_samples, &rangeRp, &rangeL) &&
-        rangeL > kPeakEpsilon &&
-        rangeRp > gConfig.max_rp_l_range_ratio * rangeL) {
-      if (result != nullptr) result->reject_reason = "rp_range";
+  // cancel, |r| ≈ 0, planar_angle ≈ π/2). Fit Rp linearly to sample index
+  // over the window and reject when the predicted drift from start to end
+  // exceeds the cap, in absolute ohms. 0 disables the check.
+  if (gConfig.max_rp_drift_ohms > 0.0f) {
+    float driftOhms = 0.0f;
+    if (getRpDriftForWindow(gConfig.window_samples, &driftOhms) &&
+        driftOhms > gConfig.max_rp_drift_ohms) {
+      if (result != nullptr) result->reject_reason = "rp_drift";
       gPreviousQualified = false;
       return false;
     }
@@ -707,22 +719,22 @@ float crackDetectionGetMinPlanarAngleRad(void) {
   return gConfig.min_planar_angle_rad;
 }
 
-void crackDetectionSetMaxRpLRangeRatio(float max_rp_l_range_ratio) {
+void crackDetectionSetMaxRpDriftOhms(float max_rp_drift_ohms) {
   if (!gInitialized) {
     crackDetectionInit(nullptr);
   }
 
-  if (max_rp_l_range_ratio < 0.0f) {
-    max_rp_l_range_ratio = 0.0f;
+  if (max_rp_drift_ohms < 0.0f) {
+    max_rp_drift_ohms = 0.0f;
   }
-  gConfig.max_rp_l_range_ratio = max_rp_l_range_ratio;
+  gConfig.max_rp_drift_ohms = max_rp_drift_ohms;
 }
 
-float crackDetectionGetMaxRpLRangeRatio(void) {
+float crackDetectionGetMaxRpDriftOhms(void) {
   if (!gInitialized) {
     crackDetectionInit(nullptr);
   }
-  return gConfig.max_rp_l_range_ratio;
+  return gConfig.max_rp_drift_ohms;
 }
 
 void crackDetectionSetLengthEstimateScale(float length_estimate_scale) {

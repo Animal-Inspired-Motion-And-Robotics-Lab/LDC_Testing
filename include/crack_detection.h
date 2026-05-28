@@ -16,13 +16,16 @@ typedef struct {
   float min_planar_angle_rad;   // Min planar angle = atan2(stdL, stdRp) over window,
                                 // in [0, π/2]. π/2 = pure L motion (t-L planar);
                                 // 0 = pure Rp motion. Higher = stricter.
-  float max_rp_l_range_ratio;   // Stage 2b cap: reject if range(rotated Rp)
-                                // > this · range(rotated L) over the window.
-                                // Catches material transitions that sweep Rp
-                                // monotonically while L peaks symmetrically —
-                                // a case the Pearson planar check misses
-                                // because cov(Rp, L) ≈ 0. 0 disables the cap;
-                                // higher = looser.
+  float max_rp_drift_ohms;      // Stage 2b cap: reject if the linear fit of
+                                // rotated Rp vs sample index over the window
+                                // predicts more than this much total drift,
+                                // in ohms, from window start to window end.
+                                // Equivalent to bounding the tilt of the 3D
+                                // (t,Rp,L) parabola's plane away from the t-L
+                                // plane. Catches monotonic Rp drift, which
+                                // the Pearson check misses because cov(Rp,L)
+                                // ≈ 0 when L peaks symmetrically. 0 disables
+                                // the cap; higher = looser.
   float length_estimate_scale;  // Scales fit peak height into a length estimate.
 } crack_detection_config_t;
 
@@ -39,7 +42,7 @@ typedef struct {
   float fit_r2;                // Coefficient of determination of the fit.
   // When `detected` is false and the parabola fit succeeded, this points to a
   // static string explaining which check rejected the window (e.g. "low_r2",
-  // "threshold", "not_planar", "no_planar", "refractory", "held").
+  // "threshold", "not_planar", "rp_drift", "refractory", "held").
   // nullptr means no rejection reason (either detected, or no fit attempted).
   const char* reject_reason;
 } crack_detection_result_t;
@@ -69,11 +72,13 @@ float crackDetectionGetMinParabolaR2(void);
 void crackDetectionSetMinPlanarAngleRad(float min_planar_angle_rad);
 float crackDetectionGetMinPlanarAngleRad(void);
 
-// Max allowed ratio of range(rotated Rp) to range(rotated L) over the Stage-2
-// window. Stage 2b reject fires when the ratio exceeds this value. Clamped
-// to >= 0; 0 disables the check entirely.
-void crackDetectionSetMaxRpLRangeRatio(float max_rp_l_range_ratio);
-float crackDetectionGetMaxRpLRangeRatio(void);
+// Max allowed total drift of rotated Rp across the Stage-2 window, in ohms.
+// Defined as |m · (N-1)| where m is the slope of the least-squares linear fit
+// of rotated Rp against sample index, and N = window_samples. Stage 2b reject
+// fires when the fitted drift exceeds this value. Clamped to >= 0; 0 disables
+// the check entirely.
+void crackDetectionSetMaxRpDriftOhms(float max_rp_drift_ohms);
+float crackDetectionGetMaxRpDriftOhms(void);
 
 void crackDetectionSetLengthEstimateScale(float length_estimate_scale);
 float crackDetectionGetLengthEstimateScale(void);
