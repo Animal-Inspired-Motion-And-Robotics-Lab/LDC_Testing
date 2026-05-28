@@ -10,12 +10,20 @@
 
 // Tuning knobs. All fields are runtime-mutable via the serial CLI.
 typedef struct {
-  float threshold;             // Minimum fitted parabola peak height (above baseline).
-  size_t window_samples;       // Rolling window length used for fit + phase.
-  float min_parabola_r2;       // Minimum R² of the parabola fit (0..1).
-  float min_phase_angle_rad;   // Inclusive lower bound of the accept cone (rad).
-  float max_phase_angle_rad;   // Inclusive upper bound of the accept cone (rad).
-  float length_estimate_scale; // Scales fit peak height into a length estimate.
+  float threshold;              // Minimum fitted parabola peak height (above baseline).
+  size_t window_samples;        // Rolling window length used for fit + planarity.
+  float min_parabola_r2;        // Minimum R² of the parabola fit (0..1).
+  float min_planar_angle_rad;   // Min planar angle = atan2(stdL, stdRp) over window,
+                                // in [0, π/2]. π/2 = pure L motion (t-L planar);
+                                // 0 = pure Rp motion. Higher = stricter.
+  float max_rp_l_range_ratio;   // Stage 2b cap: reject if range(rotated Rp)
+                                // > this · range(rotated L) over the window.
+                                // Catches material transitions that sweep Rp
+                                // monotonically while L peaks symmetrically —
+                                // a case the Pearson planar check misses
+                                // because cov(Rp, L) ≈ 0. 0 disables the cap;
+                                // higher = looser.
+  float length_estimate_scale;  // Scales fit peak height into a length estimate.
 } crack_detection_config_t;
 
 // Per-tick result published by crackDetectionCheck(). Fit values are populated
@@ -31,7 +39,7 @@ typedef struct {
   float fit_r2;                // Coefficient of determination of the fit.
   // When `detected` is false and the parabola fit succeeded, this points to a
   // static string explaining which check rejected the window (e.g. "low_r2",
-  // "threshold", "phase_low", "phase_high", "no_phase", "refractory", "held").
+  // "threshold", "not_planar", "no_planar", "refractory", "held").
   // nullptr means no rejection reason (either detected, or no fit attempted).
   const char* reject_reason;
 } crack_detection_result_t;
@@ -55,11 +63,17 @@ float crackDetectionGetThreshold(void);
 void crackDetectionSetMinParabolaR2(float min_parabola_r2);
 float crackDetectionGetMinParabolaR2(void);
 
-// Sets the accept cone. Values are swapped if min > max so callers don't have
-// to care about the order they pass them in.
-void crackDetectionSetPhaseAngleRange(float min_phase_angle_rad, float max_phase_angle_rad);
-float crackDetectionGetMinPhaseAngleRad(void);
-float crackDetectionGetMaxPhaseAngleRad(void);
+// Minimum planar angle the Stage-2 check requires. The planar angle is
+// atan2(stdL, stdRp) over the rotated samples in the window — a measure of how
+// much of the parabola's 3D extent lies along L vs Rp. Clamped to [0, π/2].
+void crackDetectionSetMinPlanarAngleRad(float min_planar_angle_rad);
+float crackDetectionGetMinPlanarAngleRad(void);
+
+// Max allowed ratio of range(rotated Rp) to range(rotated L) over the Stage-2
+// window. Stage 2b reject fires when the ratio exceeds this value. Clamped
+// to >= 0; 0 disables the check entirely.
+void crackDetectionSetMaxRpLRangeRatio(float max_rp_l_range_ratio);
+float crackDetectionGetMaxRpLRangeRatio(void);
 
 void crackDetectionSetLengthEstimateScale(float length_estimate_scale);
 float crackDetectionGetLengthEstimateScale(void);

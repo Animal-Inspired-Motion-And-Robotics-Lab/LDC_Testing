@@ -75,16 +75,8 @@ void telemetryEmitSample(uint32_t now_ms,
     // command and the `crack_*` set commands so a debug line is self-describing.
     Serial.print("detected=");          Serial.print(crack->detected ? 1 : 0);
     Serial.print(" reject_reason=");    Serial.print(crack->reject_reason ? crack->reject_reason : "-");
-    Serial.print(" fit_peak=");         Serial.print(crack->fit_peak_height, 6);
-    Serial.print(" fit_half=");         Serial.print(crack->fit_half_peak_height, 6);
-    Serial.print(" fit_width=");        Serial.print(crack->fit_width_samples, 6);
-    Serial.print(" fit_r2=");           Serial.print(crack->fit_r2, 6);
-    Serial.print(" crack_window=");     Serial.print((unsigned int)crackDetectionGetWindowSamples());
-    Serial.print(" crack_threshold=");  Serial.print(crackDetectionGetThreshold(), 6);
-    Serial.print(" crack_r2=");         Serial.print(crackDetectionGetMinParabolaR2(), 6);
-    Serial.print(" crack_phase_min=");  Serial.print(crackDetectionGetMinPhaseAngleRad(), 6);
-    Serial.print(" crack_phase_max=");  Serial.print(crackDetectionGetMaxPhaseAngleRad(), 6);
-    Serial.print(" crack_scale=");      Serial.print(crackDetectionGetLengthEstimateScale(), 6);
-    Serial.print(" rotated=");          Serial.println(state->rotated ? "on" : "off");
+    Serial.print(" fit_peak=");         Serial.print(crack->fit_peak_height, 2);
+    Serial.print(" fit_width=");        Serial.print(crack->fit_width_samples, 2);
+    Serial.print(" fit_r2=");           Serial.println(crack->fit_r2, 2);
   }
 }

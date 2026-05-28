@@ -4,7 +4,7 @@
 //        ↓
 //   appendMeasurement() filter + rotate + store
 //        ↓
-//   crackDetectionCheck() shape + phase + dedup
+//   crackDetectionCheck() shape + planarity + dedup
 //        ↓
 //   telemetryEmitSample() emit Teleplot stream + optional crack/debug fields
 //
@@ -81,11 +81,13 @@ void setup() {
   // Crack detector tuning. These mirror the `crack_*` serial commands and can
   // be retuned live; the values here are just the boot defaults.
   crack_detection_config_t crackConfig = {
-      0.01f,    // threshold       — min fitted peak height above rotated baseline
-      110,      // window_samples  — fit window (raise as robot speed drops)
-      0.5f,     // min_parabola_r2 — fit must explain at least this much variance
-      0.785f,   // min_phase_angle_rad  (π/4)
-      3.14f,    // max_phase_angle_rad  (π)
+      0.01f,    // threshold             — min fitted peak height above rotated baseline
+      110,      // window_samples        — fit window (raise as robot speed drops)
+      0.5f,     // min_parabola_r2       — fit must explain at least this much variance
+      0.524f,   // min_planar_angle_rad  — 30°; admits |Pearson r(Rp,L)| <= 2/3
+                //                         (Rp and L moderately uncoupled = t-L planar)
+      2.0f,     // max_rp_l_range_ratio  — Stage 2b cap on range(rot Rp) /
+                //                         range(rot L); 0 disables
       220.0f    // length_estimate_scale — thou per µH (peak × scale = crack_size)
   };
   crackDetectionInit(&crackConfig);
