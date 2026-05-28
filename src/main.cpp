@@ -19,7 +19,7 @@
 #include "serial_commands.h"
 #include "telemetry.h"
 
-const char* fw_version = "0.2.7";
+const char* fw_version = "0.2.8";
 
 // Boot defaults — all of these are reconfigurable at runtime via the CLI.
 // Listed in the order setup() consumes them.
