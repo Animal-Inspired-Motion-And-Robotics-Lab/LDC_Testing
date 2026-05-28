@@ -11,21 +11,16 @@
 // Tuning knobs. All fields are runtime-mutable via the serial CLI.
 typedef struct {
   float threshold;              // Minimum fitted parabola peak height (above baseline).
-  size_t window_samples;        // Rolling window length used for fit + planarity.
+  size_t window_samples;        // Rolling window length used for fit + deviation.
   float min_parabola_r2;        // Minimum R² of the parabola fit (0..1).
-  float min_planar_angle_rad;   // Min planar angle = atan2(stdL, stdRp) over window,
-                                // in [0, π/2]. π/2 = pure L motion (t-L planar);
-                                // 0 = pure Rp motion. Higher = stricter.
-  float max_rp_drift_ohms;      // Stage 2b cap: reject if the linear fit of
-                                // rotated Rp vs sample index over the window
-                                // predicts more than this much total drift,
-                                // in ohms, from window start to window end.
-                                // Equivalent to bounding the tilt of the 3D
-                                // (t,Rp,L) parabola's plane away from the t-L
-                                // plane. Catches monotonic Rp drift, which
-                                // the Pearson check misses because cov(Rp,L)
-                                // ≈ 0 when L peaks symmetrically. 0 disables
-                                // the cap; higher = looser.
+  float max_deviation_rad;      // Max angular deviation of the 3D (t,Rp,L) curve
+                                // from the t-L plane, in [0, π/2]. Computed as
+                                // arctan(|m|) where m is the least-squares slope
+                                // of rotated Rp vs sample index — geometrically
+                                // the tilt of the (parabolic L + linear Rp)
+                                // curve's plane away from the t-L plane. 0 = the
+                                // curve must lie exactly in the t-L plane (pure
+                                // L bump, no Rp drift); π/2 disables the check.
   float length_estimate_scale;  // Scales fit peak height into a length estimate.
 } crack_detection_config_t;
 
@@ -42,7 +37,7 @@ typedef struct {
   float fit_r2;                // Coefficient of determination of the fit.
   // When `detected` is false and the parabola fit succeeded, this points to a
   // static string explaining which check rejected the window (e.g. "low_r2",
-  // "threshold", "not_planar", "rp_drift", "refractory", "held").
+  // "threshold", "deviation", "refractory", "held").
   // nullptr means no rejection reason (either detected, or no fit attempted).
   const char* reject_reason;
 } crack_detection_result_t;
@@ -66,19 +61,14 @@ float crackDetectionGetThreshold(void);
 void crackDetectionSetMinParabolaR2(float min_parabola_r2);
 float crackDetectionGetMinParabolaR2(void);
 
-// Minimum planar angle the Stage-2 check requires. The planar angle is
-// atan2(stdL, stdRp) over the rotated samples in the window — a measure of how
-// much of the parabola's 3D extent lies along L vs Rp. Clamped to [0, π/2].
-void crackDetectionSetMinPlanarAngleRad(float min_planar_angle_rad);
-float crackDetectionGetMinPlanarAngleRad(void);
-
-// Max allowed total drift of rotated Rp across the Stage-2 window, in ohms.
-// Defined as |m · (N-1)| where m is the slope of the least-squares linear fit
-// of rotated Rp against sample index, and N = window_samples. Stage 2b reject
-// fires when the fitted drift exceeds this value. Clamped to >= 0; 0 disables
-// the check entirely.
-void crackDetectionSetMaxRpDriftOhms(float max_rp_drift_ohms);
-float crackDetectionGetMaxRpDriftOhms(void);
+// Max allowed angular deviation of the 3D (t, Rp, L) curve from the t-L plane.
+// Computed as arctan(|m|) where m is the slope (Ω per sample) of the
+// least-squares linear fit of rotated Rp vs sample index over the window.
+// Geometrically: for a parabolic L plus linear Rp, the curve lies in a plane
+// tilted by exactly arctan(|m|) from the t-L plane, so this caps that tilt.
+// Clamped to [0, π/2]; π/2 disables the check.
+void crackDetectionSetMaxDeviationRad(float max_deviation_rad);
+float crackDetectionGetMaxDeviationRad(void);
 
 void crackDetectionSetLengthEstimateScale(float length_estimate_scale);
 float crackDetectionGetLengthEstimateScale(void);

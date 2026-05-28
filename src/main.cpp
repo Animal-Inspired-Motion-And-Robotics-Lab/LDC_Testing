@@ -4,7 +4,7 @@
 //        ↓
 //   appendMeasurement() filter + rotate + store
 //        ↓
-//   crackDetectionCheck() shape + planarity + dedup
+//   crackDetectionCheck() shape + direction + dedup
 //        ↓
 //   telemetryEmitSample() emit Teleplot stream + optional crack/debug fields
 //
@@ -84,10 +84,12 @@ void setup() {
       0.01f,    // threshold             — min fitted peak height above rotated baseline
       110,      // window_samples        — fit window (raise as robot speed drops)
       0.5f,     // min_parabola_r2       — fit must explain at least this much variance
-      0.524f,   // min_planar_angle_rad  — 30°; admits |Pearson r(Rp,L)| <= 2/3
-                //                         (Rp and L moderately uncoupled = t-L planar)
-      500.0f,   // max_rp_drift_ohms     — Stage 2b cap on fitted Rp drift
-                //                         across window, in ohms; 0 disables
+      1.0f,     // max_deviation_rad     — ≈57°; arctan(|m|) where m is Ω/sample
+                //                         slope of Rp linear fit. Caps the tilt
+                //                         of the (t,Rp,L) curve off the t-L
+                //                         plane, rejecting Rp drift from
+                //                         material transitions while still
+                //                         tolerating sensor-noise wiggle.
       220.0f    // length_estimate_scale — thou per µH (peak × scale = crack_size)
   };
   crackDetectionInit(&crackConfig);
@@ -118,7 +120,7 @@ void loop() {
     // 2. Push through smoothing + rotation, store in history.
     appendMeasurement(m.Rp_ohms, m.L_uH);
 
-    // 3. Run the two-stage detector on the newly extended window.
+    // 3. Run the full detector chain on the newly extended window.
     crack_detection_result_t crackResult = {};
     bool crackDetected = crackDetectionCheck(&crackResult);
 

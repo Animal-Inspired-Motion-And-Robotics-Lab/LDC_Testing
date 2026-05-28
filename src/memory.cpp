@@ -46,9 +46,11 @@ constexpr size_t kIndexBufferLen = 512;
 // chord-angle phase keys (crk_pmin / crk_pmax) with a single planar-angle key
 // (crk_pln) when Stage 2 of the crack detector was reworked. v3 added crk_rpr
 // for a short-lived Stage 2b range-ratio cap. v4 replaced crk_rpr with crk_rpd
-// when Stage 2b switched to a linear-fit Rp drift cap in ohms. Older profiles
-// still load — missing keys fall back to the live default.
-constexpr uint8_t kSchemaVersion = 4;
+// when Stage 2b switched to a linear-fit Rp drift cap in ohms. v5 collapsed
+// crk_pln + crk_rpd into a single crk_dev (deviation angle of the 3D curve
+// from the t-L plane). Older profiles still load — missing keys fall back to
+// the live default.
+constexpr uint8_t kSchemaVersion = 5;
 
 // Material names map 1:1 to NVS namespace names: 1..MEMORY_MAX_NAME_LEN chars,
 // alphanumeric / '-' / '_', and never a leading '_' (reserved for the index).
@@ -189,8 +191,7 @@ bool memorySaveMaterial(const char* material,
   prefs.putUInt("crk_win", (uint32_t)crackDetectionGetWindowSamples());
   prefs.putFloat("crk_thr", crackDetectionGetThreshold());
   prefs.putFloat("crk_r2", crackDetectionGetMinParabolaR2());
-  prefs.putFloat("crk_pln", crackDetectionGetMinPlanarAngleRad());
-  prefs.putFloat("crk_rpd", crackDetectionGetMaxRpDriftOhms());
+  prefs.putFloat("crk_dev", crackDetectionGetMaxDeviationRad());
   prefs.putFloat("crk_scl", crackDetectionGetLengthEstimateScale());
 
   prefs.end();
@@ -250,10 +251,8 @@ bool memoryRetrieveMaterial(const char* material,
   crackDetectionSetThreshold(prefs.getFloat("crk_thr", crackDetectionGetThreshold()));
   crackDetectionSetMinParabolaR2(
       prefs.getFloat("crk_r2", crackDetectionGetMinParabolaR2()));
-  crackDetectionSetMinPlanarAngleRad(
-      prefs.getFloat("crk_pln", crackDetectionGetMinPlanarAngleRad()));
-  crackDetectionSetMaxRpDriftOhms(
-      prefs.getFloat("crk_rpd", crackDetectionGetMaxRpDriftOhms()));
+  crackDetectionSetMaxDeviationRad(
+      prefs.getFloat("crk_dev", crackDetectionGetMaxDeviationRad()));
   crackDetectionSetLengthEstimateScale(
       prefs.getFloat("crk_scl", crackDetectionGetLengthEstimateScale()));
 

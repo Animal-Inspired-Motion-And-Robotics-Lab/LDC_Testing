@@ -102,8 +102,7 @@ void printHelp() {
   Serial.println("  crack_window [n]           // parabola fit window samples");
   Serial.println("  crack_threshold [val]      // min parabola peak above baseline");
   Serial.println("  crack_r2 [0..1]            // min parabola R^2 fit");
-  Serial.println("  crack_planar [angle]       // min 3D planar angle = atan2(stdL,stdRp), 0..pi/2");
-  Serial.println("  crack_rp_drift [ohms]      // max fitted Rp drift across window; 0 disables");
+  Serial.println("  crack_deviation [rad]      // max angular tilt of (t,Rp,L) curve off the t-L plane, 0..pi/2");
   Serial.println("  crack_scale [scale]        // peak->length scale factor");
   Serial.println("  crack_output on|off        // emit per-crack >mag >crack_x >crack_size >width");
   Serial.println("  crack_debug on|off         // print crack detector debug state");
@@ -151,10 +150,8 @@ void printStatus() {
   Serial.print(" crack_r2=");
   Serial.println(crackDetectionGetMinParabolaR2(), 6);
 
-  Serial.print("crack_planar=");
-  Serial.print(crackDetectionGetMinPlanarAngleRad(), 6);
-  Serial.print(" crack_rp_drift=");
-  Serial.print(crackDetectionGetMaxRpDriftOhms(), 6);
+  Serial.print("crack_deviation=");
+  Serial.print(crackDetectionGetMaxDeviationRad(), 6);
   Serial.print(" crack_scale=");
   Serial.println(crackDetectionGetLengthEstimateScale(), 6);
 
@@ -403,47 +400,25 @@ void processCommand(char* line) {
     return;
   }
 
-  if (strcmp(token, "crack_planar") == 0) {
+  if (strcmp(token, "crack_deviation") == 0) {
     char* value = strtok(nullptr, " \t");
     if (value != nullptr) {
       char* end = nullptr;
       float parsed = strtof(value, &end);
       if (end == value || *end != '\0' || parsed < 0.0f) {
-        Serial.println("ERR crack_planar must be 0..pi/2 (rad)");
+        Serial.println("ERR crack_deviation must be 0..pi/2 (rad)");
         return;
       }
       char* extra = strtok(nullptr, " \t");
       if (extra != nullptr) {
-        Serial.println("ERR usage: crack_planar [angle_rad]");
+        Serial.println("ERR usage: crack_deviation [angle_rad]");
         return;
       }
-      crackDetectionSetMinPlanarAngleRad(parsed);
+      crackDetectionSetMaxDeviationRad(parsed);
     }
 
-    Serial.print("crack_planar=");
-    Serial.println(crackDetectionGetMinPlanarAngleRad(), 6);
-    return;
-  }
-
-  if (strcmp(token, "crack_rp_drift") == 0) {
-    char* value = strtok(nullptr, " \t");
-    if (value != nullptr) {
-      char* end = nullptr;
-      float parsed = strtof(value, &end);
-      if (end == value || *end != '\0' || parsed < 0.0f) {
-        Serial.println("ERR crack_rp_drift must be >= 0 ohms (0 disables)");
-        return;
-      }
-      char* extra = strtok(nullptr, " \t");
-      if (extra != nullptr) {
-        Serial.println("ERR usage: crack_rp_drift [ohms]");
-        return;
-      }
-      crackDetectionSetMaxRpDriftOhms(parsed);
-    }
-
-    Serial.print("crack_rp_drift=");
-    Serial.println(crackDetectionGetMaxRpDriftOhms(), 6);
+    Serial.print("crack_deviation=");
+    Serial.println(crackDetectionGetMaxDeviationRad(), 6);
     return;
   }
 
