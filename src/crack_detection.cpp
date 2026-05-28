@@ -1,4 +1,4 @@
-// Two-stage crack detector.
+// Multi-stage crack detector.
 //
 // Stage 1 (shape): least-squares fit a parabola to the most recent
 //   `crack_window` rotated-L samples. Accept the window if the fit explains the
@@ -47,6 +47,19 @@
 // same physical crack does not emit multiple times as its tail slides through
 // the window; `gPreviousQualified` adds a second dedup layer (see notes inside
 // crackDetectionCheck).
+//
+// Per-tick rejection cheat sheet — each filter in the order it's checked,
+// paired with the physical condition that typically trips it:
+//
+//   #  reject_reason   real-world cause
+//   --------------------------------------------------------------------------
+//   1  (silent)        warmup window not full, or L trending downward (no bump)
+//   2  low_r2          L isn't bump-shaped — drift, noise, or vibration
+//   3  threshold       bump too small — sensor noise or sub-resolution defect
+//   4  not_planar      lift-off / tilt — Rp and L moving in lockstep
+//   5  rp_drift        material transition — substrate baseline sliding away
+//   6  refractory      same crack still inside the window after a recent fire
+//   7  held            continuation of a crack already fired on a prior tick
 
 #include "crack_detection.h"
 
@@ -503,7 +516,7 @@ void crackDetectionInit(const crack_detection_config_t* config) {
   gInitialized = true;
 }
 
-// Per-tick entry point. Run the two-stage check on whatever rolling window is
+// Per-tick entry point. Run the full check chain on whatever rolling window is
 // currently in measurement_arrays and decide if this tick should emit a crack.
 // Returns true exactly when a brand-new detection fires; false otherwise.
 // When `result` is provided it always receives the fit values (or zeros) and,

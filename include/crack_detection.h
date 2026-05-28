@@ -1,4 +1,4 @@
-// Two-stage crack detector built on top of the rotated measurement stream.
+// Multi-stage crack detector built on top of the rotated measurement stream.
 // See crack_detection.cpp for the full algorithm description and pipeline.
 
 #ifndef CRACK_DETECTION_H

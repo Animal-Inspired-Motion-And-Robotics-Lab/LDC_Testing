@@ -48,7 +48,7 @@ Each `loop()` tick in [src/main.cpp](src/main.cpp) does, in order:
 
 1. `ldc1101_read()` → raw `(Rp, L)`.
 2. `appendMeasurement(rp, l)` in [src/measurement_arrays.cpp](src/measurement_arrays.cpp) pushes the sample through a moving-average filter (window settable via `setFilterWindow`, exposed as the `smoothing` serial command), then through a 2-D rotation about a stored center if rotation is enabled.
-3. `crackDetectionCheck()` in [src/crack_detection.cpp](src/crack_detection.cpp) runs a two-step detector:
+3. `crackDetectionCheck()` in [src/crack_detection.cpp](src/crack_detection.cpp) runs a multi-stage detector:
    1. **Shape check (L vs time).** Fit a parabola to the most recent `window_samples` of rotated `L` (x is sample index). If R² ≥ `min_parabola_r2` and fitted peak height ≥ `threshold`, the window is a *crack candidate*.
    2. **3D planarity check (t, Rp, L).** Picture the window as a curve in `(t, Rp, L)` space. A real crack lies mostly in the `t-L` plane — L bumps in time while Rp stays at the calibrated substrate baseline — whereas substrate motion tilts the curve so Rp moves together with L. We test this via the Pearson correlation `r = cov(Rp, L) / (std(Rp)·std(L))` over the rotated window and map `|r| ∈ [0, 1]` to a planar angle:
 

@@ -4,7 +4,7 @@
 //        ↓
 //   appendMeasurement() filter + rotate + store
 //        ↓
-//   crackDetectionCheck() shape + planarity + dedup
+//   crackDetectionCheck() shape + planarity + Rp-drift + dedup
 //        ↓
 //   telemetryEmitSample() emit Teleplot stream + optional crack/debug fields
 //
@@ -118,7 +118,7 @@ void loop() {
     // 2. Push through smoothing + rotation, store in history.
     appendMeasurement(m.Rp_ohms, m.L_uH);
 
-    // 3. Run the two-stage detector on the newly extended window.
+    // 3. Run the full detector chain on the newly extended window.
     crack_detection_result_t crackResult = {};
     bool crackDetected = crackDetectionCheck(&crackResult);
 
