@@ -4,7 +4,7 @@
 //        ↓
 //   appendMeasurement() filter + rotate + store
 //        ↓
-//   crackDetectionCheck() shape + direction + dedup
+//   crackDetectionCheck() shape + planarity + dedup
 //        ↓
 //   telemetryEmitSample() emit Teleplot stream + optional crack/debug fields
 //

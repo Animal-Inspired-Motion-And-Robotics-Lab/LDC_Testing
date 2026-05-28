@@ -48,7 +48,11 @@ Each `loop()` tick in [src/main.cpp](src/main.cpp) does, in order:
 
 1. `ldc1101_read()` → raw `(Rp, L)`.
 2. `appendMeasurement(rp, l)` in [src/measurement_arrays.cpp](src/measurement_arrays.cpp) pushes the sample through a moving-average filter (window settable via `setFilterWindow`, exposed as the `smoothing` serial command), then through a 2-D rotation about a stored center if rotation is enabled.
+<<<<<<< HEAD
 3. `crackDetectionCheck()` in [src/crack_detection.cpp](src/crack_detection.cpp) runs a two-stage detector:
+=======
+3. `crackDetectionCheck()` in [src/crack_detection.cpp](src/crack_detection.cpp) runs a multi-stage detector:
+>>>>>>> 76487d8926a5fc7b7ee85a86f4ba4c33a9a33e20
    1. **Shape check (L vs time).** Fit a parabola to the most recent `window_samples` of rotated `L` (x is sample index). If R² ≥ `min_parabola_r2` and fitted peak height ≥ `threshold`, the window is a *crack candidate*.
    2. **3D direction check (t, Rp, L).** Picture the candidate window as a curve in `(t, Rp, L)` space. A real crack lies near the `t-L` plane — L bumps in time while Rp stays at the calibrated substrate baseline — whereas substrate motion (material patch boundary, baseline slide) tilts the curve off that plane toward the L-Rp plane. We characterize the tilt analytically: for a parabolic L plus a linear-in-time Rp drift with slope `m`, the curve lies exactly in the plane spanned by `(1, m, 0)` and `(0, 0, 1)`, whose unit normal is `(−m, 1, 0)/√(m²+1)`, so the angle between that plane and the t-L plane is `arctan(|m|)`. The tangent at the parabola vertex is `(1, m, 0)`, with the same angle off the t-L plane — the curve's "direction of change" is captured entirely by `m`. We fit `m` by least squares over the rotated window and reject when `arctan(|m|) > max_deviation_rad`. Tuned via `crack_deviation` (default `1.0` rad ≈ 57°; `π/2` disables the check). The implicit unit scale is arctan(Ω per sample): at the default 110-sample window, 1.0 rad corresponds to roughly 170 Ω of total predicted Rp drift across the window, which sensor-noise wiggle never approaches but a material transition blows past.
 4. The latest sample — rotated or unrotated, depending on `state.rotated` — is emitted to serial in Teleplot format, with the optional crack-magnitude triple appended when a confirmed detection fires this tick.

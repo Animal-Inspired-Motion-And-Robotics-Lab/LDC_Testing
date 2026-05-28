@@ -1,4 +1,4 @@
-// Two-stage crack detector.
+// Multi-stage crack detector.
 //
 // Stage 1 (shape): least-squares fit a parabola to the most recent
 //   `crack_window` rotated-L samples. Accept the window if the fit explains the
@@ -25,40 +25,6 @@
 // same physical crack does not emit multiple times as its tail slides through
 // the window; `gPreviousQualified` adds a second dedup layer (see notes inside
 // crackDetectionCheck).
-//
-// Per-tick stage reference — each filter in the order it's checked, with the
-// physical scenario it lets through (real crack) and the scenario it's
-// designed to reject (non-crack):
-//
-//   #   reject_reason   passes when IT IS a crack             rejects when IT ISN'T a crack
-//   ─── ─────────────── ───────────────────────────────────── ───────────────────────────────────────
-//   0   (silent)        probe is sweeping across a real       warmup not done; L trending one way
-//                       downward-opening L bump that peaks    with no return; window too noisy to
-//                       and returns to baseline               fit any parabola
-//
-//   1a  low_r2          probe sweep is smooth, the L bump     vibration / slip / multiple ridges /
-//                       cleanly matches a parabola            drifting baseline warp the bump shape
-//
-//   1b  threshold       crack disrupts enough eddy current    defect too small/shallow to register,
-//                       to lift L above sensor noise          or noise alone produced a tiny bump
-//
-//   2   deviation       probe is on the calibrated            substrate is sliding (material patch
-//                       substrate; rotated Rp holds its       boundary, baseline drift, conductivity
-//                       baseline, so the (t,Rp,L) curve       change) pulling rotated Rp
-//                       sits near the t-L plane               monotonically and tilting the curve
-//                                                             off the t-L plane toward the L-Rp plane
-//
-//   3a  refractory      enough sample ticks have passed       previous crack's tail is still inside
-//                       since the last detection that this    the window — would double-emit on one
-//                       is a distinct physical event          physical crack
-//
-//   3b  held            leading edge of a fresh event —       same window qualified last tick too;
-//                       last tick failed, this is the first   emitting now would count one crack
-//                       qualifying tick                       as two
-//
-//   →   (detection)     all checks pass — LED flash +         n/a
-//                       Teleplot mag / crack_x / crack_size
-//                       / width
 
 #include "crack_detection.h"
 
