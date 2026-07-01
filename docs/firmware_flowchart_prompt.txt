@@ -1,0 +1,120 @@
+EC-ECLAIR FIRMWARE FLOWCHART — INSTRUCTIONS FOR CHATGPT
+========================================================
+
+WHAT I WANT
+-----------
+Draw a clear flowchart that shows the overview of this embedded firmware: how it
+COLLECTS eddy-current data from the sensor, PROCESSES it into a crack decision,
+and TRANSMITS the result over USB serial. Use a top-to-bottom flowchart with a
+clear main loop, and use branch/decision diamonds where the code branches.
+If you can, render it as a Mermaid `flowchart TD` diagram; otherwise a clean
+boxes-and-arrows drawing is fine. Keep the three phases (COLLECT / PROCESS /
+TRANSMIT) visually grouped or color-coded.
+
+SYSTEM CONTEXT (one paragraph, put this in a note box)
+------------------------------------------------------
+Firmware runs on a Seeed XIAO ESP32-S3 (Arduino framework, PlatformIO). It drives
+a TI LDC1101 inductance-to-digital converter over SPI. The LDC1101 is wired to an
+LC tank used as an eddy-current probe. The whole thing is a crack-detection payload
+on an insect-scale mobile robot (ECLAIR) that sweeps the probe across a conductive
+substrate and watches for the electromagnetic signature of a crack passing under the
+probe. The chip samples Rp (parallel resistance) and L (inductance); the firmware
+smooths, rotates, and fits those signals, then streams the result to a host in
+Teleplot format over USB serial. It is reconfigurable at runtime over that same
+serial link.
+
+NODES AND FLOW TO DRAW
+----------------------
+
+=== BOOT / SETUP (runs once) ===
+1. Power on / setup()
+2. ldc1101_init()  -> initialize SPI bus, read chip ID
+3. ldc1101_configure(L, C, Q, mode, speed_mode, ...)  -> compute all LDC1101
+   register values from the sensor's physical specs and write them to the chip
+4. Enter main loop
+
+=== MAIN LOOP (runs every tick) ===
+Start of loop()
+  A. serialCommandsPoll()  -> drain any queued serial CLI input first, so user
+     config changes take effect THIS tick. (See "SERIAL COMMAND INTERFACE" side
+     branch below.)
+  B. Read current state + config (streaming on/off, mode, delays, rotation on/off,
+     sensor specs, crack-detector tuning).
+  C. DECISION: streaming enabled?
+       - NO  -> short delay, go back to start of loop.
+       - YES -> continue.
+  D. DECISION: has reading_delay_ms elapsed since last emit? (non-blocking pacing)
+       - NO  -> go back to start of loop.
+       - YES -> continue to the COLLECT/PROCESS/TRANSMIT chain below.
+
+--- PHASE 1: COLLECT ---
+  1. ldc1101_read()  -> raw measurement (Rp_ohms, L_uH, timestamp).
+     (Note: in LHR high-resolution-L mode, Rp is NAN.)
+
+--- PHASE 2: PROCESS ---
+  2. appendMeasurement(Rp, L):
+       2a. Moving-average smoothing filter (window = "smoothing" setting).
+       2b. DECISION: rotation enabled?
+             - YES -> rotate the (Rp, L) point about the stored calibration center
+                      by the calibrated angle, so the substrate's "no-crack" trend
+                      lies along the x-axis and crack excursions show up on the L axis.
+             - NO  -> store unrotated.
+       2c. Push into the measurement history arrays.
+  3. crackDetectionCheck() -> multi-stage detector on the most recent window:
+       Stage 1 — SHAPE CHECK (L vs time): fit a parabola to the last N rotated L
+                 samples. DECISION: is R^2 >= min_parabola_r2 AND fitted peak height
+                 >= threshold?
+                   - NO  -> not a crack candidate -> detector returns "no crack".
+                   - YES -> it's a crack CANDIDATE, go to Stage 2.
+       Stage 2 — 3D DIRECTION CHECK (t, Rp, L): fit the Rp-vs-time drift slope m
+                 over the window. A real crack keeps Rp at the calibrated baseline
+                 (curve stays near the t-L plane); substrate/material transitions
+                 tilt it toward the Rp axis. DECISION: is arctan(|m|) <= max_deviation_rad?
+                   - NO  -> reject (substrate transition, not a crack).
+                   - YES -> CONFIRMED CRACK (compute crack magnitude/half/width).
+
+--- BRANCH: LED FEEDBACK ---
+  4. DECISION: rotation calibrated AND crack confirmed this tick?
+       - YES -> flash the LED (pre-calibration detections are not trusted).
+       - NO  -> skip.
+
+--- PHASE 3: TRANSMIT ---
+  5. telemetryEmitSample(): emit one Teleplot-format line over USB serial:
+       ">Rp:<val>>L:<val>" , plus an optional ">mag:>half:>width:" triple when a
+       confirmed crack is being emitted, then ">t:<ms>|xy". The trailing |xy tells
+       Teleplot to plot Rp vs L as an X-Y plot. (An optional plain-text key=value
+       debug line is also emitted when crack-debug output is on.)
+  6. Loop back to start of loop().
+
+=== SIDE BRANCH: SERIAL COMMAND INTERFACE (host -> firmware, asynchronous) ===
+Draw this as a separate box feeding into step A (serialCommandsPoll) of the loop.
+The host can send line-oriented text commands at any time to reconfigure runtime
+behavior. Group them:
+  - Streaming/output: stream on/off, crack_output, crackdebug
+  - Sensor/mode: sensor L/C/Q, mode (Rp+L vs high-res L), speed_mode  (these re-run
+    ldc1101_configure() to push new registers to the chip)
+  - Processing: smoothing (filter window), calibrate (see below), rotation on/off
+  - Crack tuning: crack_window, crack_threshold, crack_r2, crack_deviation, crack_scale
+  - Persistence (NVS flash "material profiles"): save <name>, retrieve <name>,
+    materials (list), get_material (identify closest substrate by angle), forget <name>
+  - Introspection: help, status
+
+=== SIDE BRANCH: CALIBRATION (the "calibrate" command) ===
+Draw as a box that sets the rotation used in step 2b. It is per-material.
+  1. Take the most recent N filtered (Rp, L) samples from history.
+  2. Compute the dominant axis of that cloud (least-squares L-on-Rp slope; this axis
+     is the substrate's baseline phase response, set by its conductivity).
+  3. setRotationAngle(-theta) and setRotationCenter(mean_Rp, mean_L) so future samples
+     are rotated: "no-crack" trend onto the x-axis, crack bumps onto the L axis.
+  Note: recalibrate whenever the robot moves to a different substrate. Material
+  profiles (angle, center, filter window, crack tuning, sensor specs) can be saved to
+  and retrieved from NVS flash so a substrate's tuning survives a power cycle.
+
+STYLE NOTES
+-----------
+- Make the main loop an obvious vertical spine with the three phases labeled
+  COLLECT, PROCESS, TRANSMIT.
+- Use diamonds for every DECISION listed above.
+- Show the two side branches (serial commands, calibration) feeding into the loop
+  rather than inline, so the main data path stays readable.
+- A legend mapping COLLECT/PROCESS/TRANSMIT to colors would help.

@@ -1,0 +1,27 @@
+Command,Aliases,Category,Arguments,Default,Description
+help,,signal,,,Show the command list
+status,,signal,,,Print all current values
+l_h,lh,hardware,[uH],42.6,Sensor inductance (pushed to chip)
+c_f,cf,hardware,[pF],220,Sensor capacitance (pushed to chip)
+q,,hardware,[ratio],25,Sensor quality factor (pushed to chip)
+mode,,hardware,lrp|lhr,lrp,Measurement mode (Rp+L vs high-res L)
+speed,,hardware,accuracy|balanced1|balanced2|fast,balanced1,Accuracy-throughput tradeoff
+delay,,hardware,<ms>,25,Sample period
+stream,,signal,on|off,on,Toggle streaming output
+smoothing,,signal,<n>,25,Moving-average filter window
+rotated,"rotate, rotation",signal,on|off,off,Apply calibrated rotation
+angle,,signal,[radians],0,Get/set rotation angle
+calibrate,,signal,[samples],40,Run calibration on recent samples
+baseline,,signal,[samples],40,Re-anchor rotation center to recent flat signal
+crack_window,,crack tuning,[n],110,Parabola-fit window samples
+crack_threshold,,crack tuning,[val],0.01,Min parabola peak above baseline
+crack_r2,,crack tuning,[0..1],0.5,Min parabola R^2 fit
+crack_deviation,,crack tuning,[rad],1,"Max tilt of (t,Rp,L) curve off t-L plane, 0..pi/2"
+crack_scale,,crack tuning,[scale],220,Peak-to-length scale factor
+crack_output,,crack tuning,on|off,on,Emit per-crack >mag >crack_x >crack_size >width
+crack_debug,,crack tuning,on|off,off,Print crack-detector debug state
+save,,signal,<material>,,Store all settings under a name (NVS)
+retrieve,load,signal,<material>,,Load settings saved under a name
+materials,,signal,,,List saved materials + rotation angle
+get_material,,signal,,,Name the saved material closest to current calibration
+forget,,signal,<material>,,Delete a saved material

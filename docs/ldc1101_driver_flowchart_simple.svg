@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="1280"
+   height="720"
+   viewBox="0 0 1280 720"
+   font-family="Segoe UI, Helvetica, Arial, sans-serif"
+   version="1.1"
+   id="svg34"
+   sodipodi:docname="ldc1101_driver_flowchart_simple.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview34"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.54027778"
+     inkscape:cx="829.20308"
+     inkscape:cy="323.90745"
+     inkscape:window-width="1920"
+     inkscape:window-height="1058"
+     inkscape:window-x="5113"
+     inkscape:window-y="-6"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg34" />
+  <defs
+     id="defs2">
+    <marker
+       id="arr"
+       viewBox="0 0 10 10"
+       refX="9"
+       refY="5"
+       markerWidth="8"
+       markerHeight="8"
+       orient="auto-start-reverse">
+      <path
+         d="M0,0 L10,5 L0,10 z"
+         fill="#475569"
+         id="path1" />
+    </marker>
+    <marker
+       id="arrL"
+       viewBox="0 0 10 10"
+       refX="9"
+       refY="5"
+       markerWidth="7"
+       markerHeight="7"
+       orient="auto-start-reverse">
+      <path
+         d="M0,0 L10,5 L0,10 z"
+         fill="#94a3b8"
+         id="path2" />
+    </marker>
+  </defs>
+  <rect
+     width="1280"
+     height="720"
+     fill="#ffffff"
+     id="rect2" />
+  <!-- Title -->
+  <text
+     x="40"
+     y="46"
+     font-size="28"
+     font-weight="700"
+     fill="#1e293b"
+     id="text2">Inside the LDC1101 Driver  (lib/LDC1101)</text>
+  <text
+     x="40"
+     y="72"
+     font-size="15"
+     fill="#475569"
+     id="text3">A clean C API that turns sensor specs into register settings, runs conversions, and returns Rp &amp; L.</text>
+  <!-- ================= PUBLIC API ROW ================= -->
+  <text
+     x="40"
+     y="106"
+     font-size="13px"
+     font-weight="700"
+     fill="#334155"
+     letter-spacing="1"
+     id="text4">ldc1101.h</text>
+  <g
+     text-anchor="middle"
+     id="g12">
+    <rect
+       x="40"
+       y="116"
+       width="285"
+       height="66"
+       rx="10"
+       fill="#dbe1e8"
+       stroke="#475569"
+       stroke-width="1.5"
+       id="rect4" />
+    <text
+       x="182"
+       y="146"
+       font-size="16"
+       font-weight="700"
+       fill="#1e293b"
+       id="text5">ldc1101_init()</text>
+    <text
+       x="182"
+       y="167"
+       font-size="11.5"
+       fill="#475569"
+       id="text6">SPI bus up · read CHIP_ID</text>
+    <rect
+       x="345"
+       y="116"
+       width="285"
+       height="66"
+       rx="10"
+       fill="#dbe1e8"
+       stroke="#475569"
+       stroke-width="1.5"
+       id="rect6" />
+    <text
+       x="487"
+       y="146"
+       font-size="16"
+       font-weight="700"
+       fill="#1e293b"
+       id="text7">ldc1101_configure()</text>
+    <text
+       x="487"
+       y="167"
+       font-size="11.5"
+       fill="#475569"
+       id="text8">specs → register values</text>
+    <rect
+       x="650"
+       y="116"
+       width="285"
+       height="66"
+       rx="10"
+       fill="#dbe1e8"
+       stroke="#475569"
+       stroke-width="1.5"
+       id="rect8" />
+    <text
+       x="792"
+       y="146"
+       font-size="16"
+       font-weight="700"
+       fill="#1e293b"
+       id="text9">ldc1101_read(C)</text>
+    <text
+       x="792"
+       y="167"
+       font-size="11.5"
+       fill="#475569"
+       id="text10">→ { Rp, L, timestamp }</text>
+    <rect
+       x="955"
+       y="116"
+       width="285"
+       height="66"
+       rx="10"
+       fill="#dbe1e8"
+       stroke="#475569"
+       stroke-width="1.5"
+       id="rect10" />
+    <text
+       x="1097"
+       y="146"
+       font-size="16"
+       font-weight="700"
+       fill="#1e293b"
+       id="text11">sleep() / wake()</text>
+    <text
+       x="1097"
+       y="167"
+       font-size="11.5"
+       fill="#475569"
+       id="text12">toggle START_CONFIG</text>
+  </g>
+  <!-- ================= configure() COLUMN ================= -->
+  <text
+     x="40"
+     y="226"
+     font-size="14px"
+     font-weight="700"
+     fill="#334155"
+     id="text13">ldc1101_configure()</text>
+  <g
+     text-anchor="middle"
+     id="g20">
+    <rect
+       x="40"
+       y="238"
+       width="590"
+       height="132"
+       rx="10"
+       fill="#f1f5f9"
+       stroke="#64748b"
+       stroke-width="1.5"
+       id="rect13" />
+    <text
+       x="335"
+       y="266"
+       font-size="15"
+       font-weight="700"
+       fill="#1e293b"
+       id="text14">Derive register values from L, C, Q, speed</text>
+    <text
+       x="335"
+       y="292"
+       font-size="12.5"
+       fill="#334155"
+       id="text15">RP_SET — f = 1/(2π√LC),  Rp_est = Q·2πf·L,  pick RP bins</text>
+    <text
+       x="335"
+       y="314"
+       font-size="12.5"
+       fill="#334155"
+       id="text16">TC1 / TC2 — sensor time constants from speed mode</text>
+    <text
+       x="335"
+       y="336"
+       font-size="12.5"
+       fill="#334155"
+       id="text17">DIG_CONF — response &amp; conversion time</text>
+    <text
+       x="335"
+       y="358"
+       font-size="11"
+       fill="#64748b"
+       id="text18">(datasheet formulas)</text>
+    <rect
+       x="40"
+       y="392"
+       width="590"
+       height="72"
+       rx="10"
+       fill="#f1f5f9"
+       stroke="#64748b"
+       stroke-width="1.5"
+       id="rect18" />
+    <text
+       x="335"
+       y="420"
+       font-size="15"
+       font-weight="700"
+       fill="#1e293b"
+       id="text19">Write registers (chip asleep, then wake)</text>
+    <text
+       x="335"
+       y="446"
+       font-size="12.5"
+       fill="#334155"
+       id="text20">mode branch — RP+L  or  LHR (high-res L)</text>
+  </g>
+  <!-- ================= read() COLUMN ================= -->
+  <text
+     x="650"
+     y="226"
+     font-size="14px"
+     font-weight="700"
+     fill="#334155"
+     id="text21">ldc1101_read(): raw to Rp, L</text>
+  <g
+     text-anchor="middle"
+     id="g27">
+    <rect
+       x="650"
+       y="238"
+       width="590"
+       height="92"
+       rx="10"
+       fill="#f1f5f9"
+       stroke="#64748b"
+       stroke-width="1.5"
+       id="rect21" />
+    <text
+       x="945"
+       y="266"
+       font-size="15"
+       font-weight="700"
+       fill="#1e293b"
+       id="text22">Run conversion</text>
+    <text
+       x="945"
+       y="292"
+       font-size="12.5"
+       fill="#334155"
+       id="text23">RP+L: poll STATUS / DRDYB   ·   LHR: wait t_CONV</text>
+    <text
+       x="945"
+       y="314"
+       font-size="11"
+       fill="#64748b"
+       id="text24">NO_SENSOR_OSC / timeout → NaN</text>
+    <rect
+       x="650"
+       y="392"
+       width="590"
+       height="72"
+       rx="10"
+       fill="#f1f5f9"
+       stroke="#64748b"
+       stroke-width="1.5"
+       id="rect24" />
+    <text
+       x="945"
+       y="416"
+       font-size="15"
+       font-weight="700"
+       fill="#1e293b"
+       id="text25">Decode reading</text>
+    <text
+       x="945"
+       y="440"
+       font-size="12.5"
+       fill="#334155"
+       id="text26">Rp from RP table  ·  L = 1 / ( (2πf)² · C )</text>
+    <text
+       x="945"
+       y="457"
+       font-size="11"
+       fill="#64748b"
+       id="text27">LHR mode returns Rp = NaN</text>
+  </g>
+  <!-- ================= HAL BAND ================= -->
+  <text
+     x="40"
+     y="512"
+     font-size="13px"
+     font-weight="700"
+     fill="#334155"
+     letter-spacing="1"
+     id="text28"><tspan
+       sodipodi:role="line"
+       id="tspan34"
+       x="40"
+       y="512">Hardware Abstraction LAYER</tspan><tspan
+       sodipodi:role="line"
+       id="tspan35"
+       x="40"
+       y="528.25">(ESP-IDF, ESP32-specific)</tspan></text>
+  <rect
+     x="40"
+     y="536"
+     width="1200"
+     height="96"
+     rx="12"
+     fill="#e2e8f0"
+     stroke="#475569"
+     stroke-width="1.5"
+     id="rect28" />
+  <text
+     x="640"
+     y="570"
+     font-size="16"
+     font-weight="700"
+     fill="#1e293b"
+     text-anchor="middle"
+     id="text29">SPI transport + register map</text>
+  <text
+     x="640"
+     y="596"
+     font-size="12.5"
+     fill="#334155"
+     text-anchor="middle"
+     id="text30">ldc_read(addr|0x80) · ldc_write(addr&amp;0x7F), 16-bit SPI mode 0</text>
+  <text
+     x="640"
+     y="616"
+     font-size="12.5"
+     fill="#334155"
+     text-anchor="middle"
+     id="text31">pins &amp; bus from platformio.ini build flags (LDC_MOSI/MISO/SCK/CS, host, clock)</text>
+  <!-- ================= ARROWS ================= -->
+  <!-- API -> columns -->
+  <path
+     d="M487,182 V206 H335 V238"
+     fill="none"
+     stroke="#475569"
+     stroke-width="2"
+     marker-end="url(#arr)"
+     id="path31" />
+  <path
+     d="M792,182 V206 H945 V238"
+     fill="none"
+     stroke="#475569"
+     stroke-width="2"
+     marker-end="url(#arr)"
+     id="path32" />
+  <!-- within columns -->
+  <line
+     x1="335"
+     y1="370"
+     x2="335"
+     y2="392"
+     stroke="#475569"
+     stroke-width="2"
+     marker-end="url(#arr)"
+     id="line32" />
+  <line
+     x1="945"
+     y1="330"
+     x2="945"
+     y2="392"
+     stroke="#475569"
+     stroke-width="2"
+     marker-end="url(#arr)"
+     id="line33" />
+  <!-- columns -> HAL -->
+  <path
+     d="M335,464 V500 H400 V536"
+     fill="none"
+     stroke="#94a3b8"
+     stroke-width="2"
+     stroke-dasharray="6 4"
+     marker-end="url(#arrL)"
+     id="path33" />
+  <path
+     d="M945,464 V500 H880 V536"
+     fill="none"
+     stroke="#94a3b8"
+     stroke-width="2"
+     stroke-dasharray="6 4"
+     marker-end="url(#arrL)"
+     id="path34" />
+  <text
+     x="640"
+     y="514"
+     font-size="11"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text34">via SPI</text>
+</svg>

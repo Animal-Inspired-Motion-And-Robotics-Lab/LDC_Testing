@@ -1,0 +1,803 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="1280"
+   height="720"
+   viewBox="0 0 1280 720"
+   font-family="Segoe UI, Helvetica, Arial, sans-serif"
+   version="1.1"
+   id="svg61"
+   sodipodi:docname="ldc1101_library_flowchart.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview61"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.42131779"
+     inkscape:cx="735.78664"
+     inkscape:cy="683.56952"
+     inkscape:window-width="1920"
+     inkscape:window-height="1058"
+     inkscape:window-x="5113"
+     inkscape:window-y="-6"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg61" />
+  <defs
+     id="defs9">
+    <marker
+       id="arrow"
+       viewBox="0 0 10 10"
+       refX="9"
+       refY="5"
+       markerWidth="7"
+       markerHeight="7"
+       orient="auto-start-reverse">
+      <path
+         d="M0,0 L10,5 L0,10 z"
+         fill="#475569"
+         id="path1" />
+    </marker>
+    <marker
+       id="arrowLight"
+       viewBox="0 0 10 10"
+       refX="9"
+       refY="5"
+       markerWidth="6"
+       markerHeight="6"
+       orient="auto-start-reverse">
+      <path
+         d="M0,0 L10,5 L0,10 z"
+         fill="#94a3b8"
+         id="path2" />
+    </marker>
+    <linearGradient
+       id="hwGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#fde68a"
+         id="stop2" />
+      <stop
+         offset="1"
+         stop-color="#fcd34d"
+         id="stop3" />
+    </linearGradient>
+    <linearGradient
+       id="drvGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#bfdbfe"
+         id="stop4" />
+      <stop
+         offset="1"
+         stop-color="#93c5fd"
+         id="stop5" />
+    </linearGradient>
+    <linearGradient
+       id="appGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#bbf7d0"
+         id="stop6" />
+      <stop
+         offset="1"
+         stop-color="#86efac"
+         id="stop7" />
+    </linearGradient>
+    <linearGradient
+       id="outGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#e9d5ff"
+         id="stop8" />
+      <stop
+         offset="1"
+         stop-color="#d8b4fe"
+         id="stop9" />
+    </linearGradient>
+  </defs>
+  <rect
+     width="1280"
+     height="720"
+     fill="#f8fafc"
+     id="rect9" />
+  <!-- Title -->
+  <text
+     x="40"
+     y="48"
+     font-size="30"
+     font-weight="700"
+     fill="#0f172a"
+     id="text9">LDC1101 Eddy-Current Crack-Detection Library</text>
+  <text
+     x="40"
+     y="76"
+     font-size="16px"
+     fill="#475569"
+     id="text10">From an inductive sensor on an insect-scale robot to a live, tunable crack signal over  SPI</text>
+  <!-- ============ Column lane headers ============ -->
+  <text
+     x="150"
+     y="141.02148"
+     font-size="14px"
+     font-weight="700"
+     fill="#92400e"
+     text-anchor="middle"
+     letter-spacing="1"
+     id="text11">HARDWARE</text>
+  <text
+     x="430"
+     y="141.02148"
+     font-size="14px"
+     font-weight="700"
+     fill="#1e40af"
+     text-anchor="middle"
+     letter-spacing="1"
+     id="text12">DRIVER (lib/LDC1101, C API)</text>
+  <text
+     x="820"
+     y="141.02148"
+     font-size="14px"
+     font-weight="700"
+     fill="#166534"
+     text-anchor="middle"
+     letter-spacing="1"
+     id="text13">APPLICATION PIPELINE (src/)</text>
+  <text
+     x="1160"
+     y="141.02148"
+     font-size="14px"
+     font-weight="700"
+     fill="#6b21a8"
+     text-anchor="middle"
+     letter-spacing="1"
+     id="text14">OUTPUT</text>
+  <!-- lane separators -->
+  <line
+     x1="290"
+     y1="128"
+     x2="290"
+     y2="690"
+     stroke="#e2e8f0"
+     stroke-width="2"
+     id="line14" />
+  <line
+     x1="640"
+     y1="128"
+     x2="640"
+     y2="690"
+     stroke="#e2e8f0"
+     stroke-width="2"
+     id="line15" />
+  <line
+     x1="1050"
+     y1="128"
+     x2="1050"
+     y2="690"
+     stroke="#e2e8f0"
+     stroke-width="2"
+     id="line16" />
+  <!-- ============ HARDWARE ============ -->
+  <g
+     id="g18">
+    <rect
+       x="40"
+       y="150"
+       width="220"
+       height="100"
+       rx="12"
+       fill="url(#hwGrad)"
+       stroke="#d97706"
+       stroke-width="1.5"
+       id="rect16" />
+    <text
+       x="150"
+       y="182"
+       font-size="16"
+       font-weight="700"
+       fill="#7c2d12"
+       text-anchor="middle"
+       id="text16">LC tank probe</text>
+    <text
+       x="150"
+       y="206"
+       font-size="13"
+       fill="#7c2d12"
+       text-anchor="middle"
+       id="text17">eddy-current coil swept</text>
+    <text
+       x="150"
+       y="224"
+       font-size="13"
+       fill="#7c2d12"
+       text-anchor="middle"
+       id="text18">over conductive substrate</text>
+  </g>
+  <g
+     id="g22">
+    <rect
+       x="40"
+       y="280"
+       width="220"
+       height="110"
+       rx="12"
+       fill="url(#hwGrad)"
+       stroke="#d97706"
+       stroke-width="1.5"
+       id="rect18" />
+    <text
+       x="150"
+       y="312"
+       font-size="16"
+       font-weight="700"
+       fill="#7c2d12"
+       text-anchor="middle"
+       id="text19">TI LDC1101</text>
+    <text
+       x="150"
+       y="334"
+       font-size="13"
+       fill="#7c2d12"
+       text-anchor="middle"
+       id="text20">inductance-to-digital</text>
+    <text
+       x="150"
+       y="352"
+       font-size="13"
+       fill="#7c2d12"
+       text-anchor="middle"
+       id="text21">converter (SPI)</text>
+    <text
+       x="150"
+       y="372"
+       font-size="12"
+       fill="#92400e"
+       text-anchor="middle"
+       id="text22">on XIAO ESP32-S3</text>
+  </g>
+  <!-- ============ DRIVER ============ -->
+  <g
+     id="g25">
+    <rect
+       x="320"
+       y="150"
+       width="300"
+       height="76"
+       rx="12"
+       fill="url(#drvGrad)"
+       stroke="#2563eb"
+       stroke-width="1.5"
+       id="rect22" />
+    <text
+       x="470"
+       y="180"
+       font-size="16"
+       font-weight="700"
+       fill="#1e3a8a"
+       text-anchor="middle"
+       id="text23">ldc1101_configure()</text>
+    <text
+       x="470"
+       y="202"
+       font-size="12.5"
+       fill="#1e3a8a"
+       text-anchor="middle"
+       id="text24">derives RP_SET, TC1, TC2, DIG_CONF</text>
+    <text
+       x="470"
+       y="218"
+       font-size="12.5"
+       fill="#1e3a8a"
+       text-anchor="middle"
+       id="text25">from sensor L, C, Q  (datasheet formulas)</text>
+  </g>
+  <g
+     id="g28">
+    <rect
+       x="320"
+       y="244"
+       width="300"
+       height="70"
+       rx="12"
+       fill="url(#drvGrad)"
+       stroke="#2563eb"
+       stroke-width="1.5"
+       id="rect25" />
+    <text
+       x="470"
+       y="272"
+       font-size="16"
+       font-weight="700"
+       fill="#1e3a8a"
+       text-anchor="middle"
+       id="text26">ldc1101_read()</text>
+    <text
+       x="470"
+       y="294"
+       font-size="12.5"
+       fill="#1e3a8a"
+       text-anchor="middle"
+       id="text27">raw measurement: Rp (Ω), L (µH)</text>
+    <text
+       x="470"
+       y="306"
+       font-size="0.1"
+       fill="#1e3a8a"
+       id="text28" />
+  </g>
+  <g
+     id="g30">
+    <rect
+       x="320"
+       y="332"
+       width="300"
+       height="58"
+       rx="12"
+       fill="#dbeafe"
+       stroke="#60a5fa"
+       stroke-width="1.5"
+       id="rect28" />
+    <text
+       x="470"
+       y="357"
+       font-size="13.5"
+       font-weight="600"
+       fill="#1e3a8a"
+       text-anchor="middle"
+       id="text29">init  ·  sleep / wake  ·  RP+L or LHR mode</text>
+    <text
+       x="470"
+       y="377"
+       font-size="12px"
+       fill="#3b5bdb"
+       text-anchor="middle"
+       id="text30">clean, C-callable, ESP-IDF SPI</text>
+  </g>
+  <!-- ============ APPLICATION PIPELINE ============ -->
+  <g
+     id="g32">
+    <rect
+       x="670"
+       y="150"
+       width="330"
+       height="58"
+       rx="12"
+       fill="url(#appGrad)"
+       stroke="#16a34a"
+       stroke-width="1.5"
+       id="rect30" />
+    <text
+       x="835"
+       y="176"
+       font-size="15"
+       font-weight="700"
+       fill="#14532d"
+       text-anchor="middle"
+       id="text31">1 · Smoothing</text>
+    <text
+       x="835"
+       y="196"
+       font-size="12.5"
+       fill="#14532d"
+       text-anchor="middle"
+       id="text32">moving-average filter (tunable window)</text>
+  </g>
+  <g
+     id="g34">
+    <rect
+       x="670"
+       y="222"
+       width="330"
+       height="62"
+       rx="12"
+       fill="url(#appGrad)"
+       stroke="#16a34a"
+       stroke-width="1.5"
+       id="rect32" />
+    <text
+       x="835"
+       y="248"
+       font-size="15"
+       font-weight="700"
+       fill="#14532d"
+       text-anchor="middle"
+       id="text33">2 · Rotation</text>
+    <text
+       x="835"
+       y="268"
+       font-size="12.5"
+       fill="#14532d"
+       text-anchor="middle"
+       id="text34">rotate Rp/L cloud onto calibrated axes</text>
+  </g>
+  <g
+     id="g38">
+    <rect
+       x="670"
+       y="298"
+       width="330"
+       height="92"
+       rx="12"
+       fill="url(#appGrad)"
+       stroke="#16a34a"
+       stroke-width="1.5"
+       id="rect34" />
+    <text
+       x="835"
+       y="324"
+       font-size="15"
+       font-weight="700"
+       fill="#14532d"
+       text-anchor="middle"
+       id="text35">3 · Crack detection</text>
+    <text
+       x="835"
+       y="346"
+       font-size="12.5"
+       fill="#14532d"
+       text-anchor="middle"
+       id="text36">shape check: parabola fit on L vs time (R²)</text>
+    <text
+       x="835"
+       y="364"
+       font-size="12.5"
+       fill="#14532d"
+       text-anchor="middle"
+       id="text37">3-D direction check: reject substrate tilt</text>
+    <text
+       x="835"
+       y="382"
+       font-size="12"
+       fill="#15803d"
+       text-anchor="middle"
+       id="text38">→ confirmed crack: mag · half · width</text>
+  </g>
+  <!-- Calibration feeding rotation -->
+  <g
+     id="g42">
+    <rect
+       x="670"
+       y="430"
+       width="330"
+       height="86"
+       rx="12"
+       fill="#fef9c3"
+       stroke="#ca8a04"
+       stroke-width="1.5"
+       id="rect38" />
+    <text
+       x="835"
+       y="456"
+       font-size="14"
+       font-weight="700"
+       fill="#713f12"
+       text-anchor="middle"
+       id="text39">Calibration  (per material)</text>
+    <text
+       x="835"
+       y="477"
+       font-size="12.5px"
+       fill="#713f12"
+       text-anchor="middle"
+       id="text40">OLS dominant-angle of R<tspan
+   style="font-size:65%;baseline-shift:sub"
+   id="tspan62">p</tspan> / L cloud</text>
+    <text
+       x="835"
+       y="495"
+       font-size="12.5px"
+       fill="#713f12"
+       text-anchor="middle"
+       id="text41">→ sets rotation angle +centroid</text>
+    <text
+       x="835"
+       y="511"
+       font-size="11.5"
+       fill="#a16207"
+       text-anchor="middle"
+       id="text42">encodes substrate conductivity / phase</text>
+  </g>
+  <!-- ============ OUTPUT ============ -->
+  <g
+     id="g47">
+    <rect
+       x="1062"
+       y="244"
+       width="190"
+       height="120"
+       rx="12"
+       fill="url(#outGrad)"
+       stroke="#9333ea"
+       stroke-width="1.5"
+       id="rect42" />
+    <text
+       x="1157"
+       y="276"
+       font-size="15px"
+       font-weight="700"
+       fill="#581c87"
+       text-anchor="middle"
+       id="text43">GUI</text>
+    <text
+       x="1157"
+       y="296"
+       font-size="12.5"
+       fill="#581c87"
+       text-anchor="middle"
+       id="text44">stream over USB</text>
+    <text
+       x="1157"
+       y="320"
+       font-size="11.5"
+       fill="#6b21a8"
+       text-anchor="middle"
+       id="text45">&gt;Rp: &gt;L: |xy</text>
+    <text
+       x="1157"
+       y="338"
+       font-size="11.5"
+       fill="#6b21a8"
+       text-anchor="middle"
+       id="text46">+ crack triple</text>
+    <text
+       x="1157"
+       y="356"
+       font-size="11"
+       fill="#7e22ce"
+       text-anchor="middle"
+       id="text47">live X-Y plot</text>
+  </g>
+  <!-- ============ CONTROL PLANE (bottom band) ============ -->
+  <rect
+     x="40"
+     y="534"
+     width="1212"
+     height="124"
+     rx="14"
+     fill="#f1f5f9"
+     stroke="#cbd5e1"
+     stroke-width="1.5"
+     id="rect47" />
+  <text
+     x="60"
+     y="562"
+     font-size="14px"
+     font-weight="700"
+     fill="#334155"
+     letter-spacing="1"
+     id="text48">RUNTIME CONTROL PLANE</text>
+  <g
+     id="g50"
+     transform="translate(0,-20)">
+    <rect
+       x="60"
+       y="596"
+       width="380"
+       height="66"
+       rx="10"
+       fill="#e0e7ff"
+       stroke="#6366f1"
+       stroke-width="1.3"
+       id="rect48" />
+    <text
+       x="250"
+       y="622"
+       font-size="14px"
+       font-weight="700"
+       fill="#3730a3"
+       text-anchor="middle"
+       id="text49">Serial command CLI</text>
+    <text
+       x="250"
+       y="644"
+       font-size="12px"
+       fill="#3730a3"
+       text-anchor="middle"
+       id="text50">reconfigure sensor, filter, crack tuning, modes live</text>
+  </g>
+  <g
+     id="g52"
+     transform="translate(0,-20)">
+    <rect
+       x="460"
+       y="596"
+       width="380"
+       height="66"
+       rx="10"
+       fill="#e0e7ff"
+       stroke="#6366f1"
+       stroke-width="1.3"
+       id="rect50" />
+    <text
+       x="650"
+       y="622"
+       font-size="14px"
+       font-weight="700"
+       fill="#3730a3"
+       text-anchor="middle"
+       id="text51">NVS material profiles</text>
+    <text
+       x="650"
+       y="644"
+       font-size="12px"
+       fill="#3730a3"
+       text-anchor="middle"
+       id="text52">save / retrieve / get_material (survives power cycle)</text>
+  </g>
+  <g
+     id="g54"
+     transform="translate(0,-20)">
+    <rect
+       x="860"
+       y="596"
+       width="372"
+       height="66"
+       rx="10"
+       fill="#e0e7ff"
+       stroke="#6366f1"
+       stroke-width="1.3"
+       id="rect52" />
+    <text
+       x="1046"
+       y="622"
+       font-size="14px"
+       font-weight="700"
+       fill="#3730a3"
+       text-anchor="middle"
+       id="text53">LED feedback + status</text>
+    <text
+       x="1046"
+       y="644"
+       font-size="12px"
+       fill="#3730a3"
+       text-anchor="middle"
+       id="text54">on-device indication and queryable state</text>
+  </g>
+  <!-- ============ ARROWS ============ -->
+  <!-- HW chain -->
+  <line
+     x1="150"
+     y1="250"
+     x2="150"
+     y2="280"
+     stroke="#475569"
+     stroke-width="2.5"
+     marker-end="url(#arrow)"
+     id="line54" />
+  <!-- HW -> driver (SPI) -->
+  <path
+     d="M260,322 H300 H320"
+     fill="none"
+     stroke="#475569"
+     stroke-width="2.5"
+     marker-end="url(#arrow)"
+     id="path54" />
+  <text
+     x="295"
+     y="312"
+     font-size="11"
+     fill="#475569"
+     text-anchor="middle"
+     id="text55">SPI</text>
+  <!-- driver config -> read (down) -->
+  <line
+     x1="470"
+     y1="226"
+     x2="470"
+     y2="244"
+     stroke="#475569"
+     stroke-width="2.5"
+     marker-end="url(#arrow)"
+     id="line55" />
+  <!-- read -> pipeline -->
+  <path
+     d="M620,279 H645 V179 H670"
+     fill="none"
+     stroke="#475569"
+     stroke-width="2.5"
+     marker-end="url(#arrow)"
+     id="path55" />
+  <text
+     x="-152.92805"
+     y="657.33014"
+     font-size="11px"
+     fill="#475569"
+     text-anchor="middle"
+     id="text56"
+     transform="rotate(-90)">(R<tspan
+   style="font-size:65%;baseline-shift:sub"
+   id="tspan61">p</tspan>,L)</text>
+  <!-- pipeline chain -->
+  <line
+     x1="835"
+     y1="208"
+     x2="835"
+     y2="222"
+     stroke="#16a34a"
+     stroke-width="2.5"
+     marker-end="url(#arrow)"
+     id="line56" />
+  <line
+     x1="835"
+     y1="284"
+     x2="835"
+     y2="298"
+     stroke="#16a34a"
+     stroke-width="2.5"
+     marker-end="url(#arrow)"
+     id="line57" />
+  <!-- calibration -> rotation (feedback up) -->
+  <path
+     d="M835,430 V400 H1015 V253 H1000"
+     fill="none"
+     stroke="#94a3b8"
+     stroke-width="2"
+     stroke-dasharray="6 4"
+     marker-end="url(#arrowLight)"
+     id="path57" />
+  <!-- pipeline -> output -->
+  <path
+     d="M1000,330 H1030 V304 H1062"
+     fill="none"
+     stroke="#475569"
+     stroke-width="2.5"
+     marker-end="url(#arrow)"
+     id="path58" />
+  <!-- control plane up into stacks -->
+  <path
+     d="m 250,534 v -94 h 70"
+     fill="none"
+     stroke="#a5b4fc"
+     stroke-width="2"
+     stroke-dasharray="5, 4"
+     marker-end="url(#arrowLight)"
+     id="path59"
+     sodipodi:nodetypes="ccc" />
+  <text
+     x="271.55878"
+     y="434"
+     font-size="10.5px"
+     fill="#6366f1"
+     text-anchor="middle"
+     id="text59">tune</text>
+  <path
+     d="M 650,534 V 505"
+     fill="none"
+     stroke="#a5b4fc"
+     stroke-width="2"
+     stroke-dasharray="5, 4"
+     marker-end="url(#arrowLight)"
+     id="path60"
+     sodipodi:nodetypes="cc" />
+  <text
+     x="678.9585"
+     y="529.63293"
+     font-size="10.5px"
+     fill="#6366f1"
+     text-anchor="middle"
+     id="text60">load/store</text>
+  <!-- footer -->
+</svg>

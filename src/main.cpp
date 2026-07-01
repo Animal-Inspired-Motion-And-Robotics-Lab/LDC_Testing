@@ -30,13 +30,13 @@ static constexpr uint32_t kDefaultReadingDelayMs = 25;
 
 // LC tank parameters used to drive RP_SET / TC1 / TC2 / DIG_CONF register
 // derivation inside the driver. Update both the value and the matching
-// stacked-inductor variant comment together (see CLAUDE.md).
+// stacked-inductor variant comment together.
 // For the stacked inductors, L = 11.8, 42.6, 90.0 uH.
-static constexpr float kSensorL_H = 90.00e-6f; // uH = 1e-6H
+static constexpr float kSensorL_H = 42.6e-6f; // uH = 1e-6H
 static constexpr float kSensorC_F = 220e-12f;  // pF = 1e-12F
 
 // For the stacked inductors, modeled Q values are 23.6, 24.6, 25.6 (220 pF).
-static constexpr float kSensorQ = 20.0f;
+static constexpr float kSensorQ = 25.0f;
 
 // External mux/switch driven by the driver before configuring. Unused on the
 // current wiring (-1 GPIO disables it).
